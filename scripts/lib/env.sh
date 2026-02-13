@@ -31,5 +31,22 @@ env_init() {
     . "$REPO_ROOT/scripts/lib/prompts.sh"
   fi
 
+  # YOLO controls whether agents may push commits upstream automatically (default: true).
+  # If YOLO is set to false (or 0/no), agents will still create commits and merge locally but will not push upstream.
+  YOLO="${YOLO:-true}"
+  YOLO="$(printf '%s' "$YOLO" | tr '[:upper:]' '[:lower:]')"
+  export YOLO
+
+  # Load lightweight sqlite helper if available and initialize DB (non-fatal if sqlite missing)
+  if [ -f "$REPO_ROOT/scripts/lib/sql.sh" ]; then
+    # shellcheck disable=SC1090
+    . "$REPO_ROOT/scripts/lib/sql.sh"
+    if sql_check >/dev/null 2>&1; then
+      sql_init || echo "Warning: sql_init failed (DB initialization)" >&2
+    else
+      echo "Info: sqlite3 not available; run scripts/setup.sh to install sqlite3 or set YOLO accordingly." >&2
+    fi
+  fi
+
   _V_DAEMON_ENV_INIT_DONE=1
 }
