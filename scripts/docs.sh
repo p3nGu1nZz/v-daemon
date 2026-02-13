@@ -52,7 +52,7 @@ collect_docs() {
 collect_scripts() {
   find scripts -type f -print >"$RAW/script_files.txt" 2>/dev/null || true
   find scripts/skills -type f -print >"$RAW/skill_scripts.txt" 2>/dev/null || true
-  grep -RIn --exclude-dir=.git -E "^#!.*(sh|bash|python|node|perl)" scripts >"$RAW/shebangs.txt" 2>/dev/null || true
+  find scripts -type f -print0 2>/dev/null | xargs -0 grep -InE "^#!.*(sh|bash|python|node|perl)" >"$RAW/shebangs.txt" 2>/dev/null || true
 }
 
 collect_src() {
@@ -60,7 +60,7 @@ collect_src() {
 }
 
 find_todos() {
-  grep -RIn --exclude-dir=.git -E "TODO|FIXME" . >"$RAW/todos.txt" 2>/dev/null || true
+  find . -path "./.git" -prune -o -type f -print0 2>/dev/null | xargs -0 grep -InE "TODO|FIXME" >"$RAW/todos.txt" 2>/dev/null || true
 }
 
 extract_top_comment() {
@@ -71,8 +71,20 @@ extract_top_comment() {
 safe_help() {
   file="$1"
   if [ "$ALLOW_RUN" = "true" ] && [ -x "$file" ]; then
-    # run short help with timeout if available
-    (timeout 3 "$file" --help 2>/dev/null || timeout 3 "$file" -h 2>/dev/null) || true
+    # run short help with timeout if available; portable fallback when timeout missing
+    if command -v timeout >/dev/null 2>&1; then
+      (timeout 3 "$file" --help 2>/dev/null || timeout 3 "$file" -h 2>/dev/null) || true
+    else
+      # portable fallback: run help in background and kill after 3s
+      ("$file" --help 2>/dev/null || "$file" -h 2>/dev/null) & pid=$!
+      sleep 3
+      if kill -0 "$pid" 2>/dev/null; then
+        kill "$pid" 2>/dev/null || true
+        sleep 0.1
+        kill -9 "$pid" 2>/dev/null || true
+      fi
+      wait "$pid" 2>/dev/null || true
+    fi
   fi
 }
 

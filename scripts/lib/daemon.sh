@@ -177,7 +177,7 @@ ensure_director_running() {
 
   # Start the director and wait briefly for it to create its pidfile
   log "[DAEMON] starting director agent (initiated by daemon)"
-  nohup bash "$DIRECTOR" >>"$DIRECTOR_LOG" 2>&1 &
+  nohup sh "$DIRECTOR" >>"$DIRECTOR_LOG" 2>&1 &
   D_START=$!
   WAITED=0
   while [ $WAITED -lt 25 ]; do

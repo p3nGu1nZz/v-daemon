@@ -84,7 +84,7 @@ run_checks() {
   echo "All checks passed."
 }
 
-FORCE=1
+FORCE=0
 CHECK_ONLY=0
 while [ "$#" -gt 0 ]; do
   case "$1" in

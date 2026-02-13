@@ -64,17 +64,15 @@ for logfile in "$LOG_DIR"/daemon.log "$LOG_DIR"/supervisor.log; do
   fi
 
   # remove old rotations beyond KEEP (keep newest KEEP)
-  files=$(ls -1t "${logfile}".* 2>/dev/null || true)
-  if [ -n "$files" ]; then
-    count=0
-    for f in $files; do
-      count=$((count+1))
-      if [ $count -gt "$KEEP" ]; then
-        rm -f "$f" || true
-        echo "Removed old rotation: $(basename "$f")"
-      fi
-    done
-  fi
+  count=0
+  for f in $(ls -1t "${logfile}".* 2>/dev/null || true); do
+    [ -f "$f" ] || continue
+    count=$((count+1))
+    if [ "$count" -gt "$KEEP" ]; then
+      rm -f "$f" || true
+      echo "Removed old rotation: $(basename "$f")"
+    fi
+  done
 
 done
 

@@ -1,5 +1,0 @@
-{
-  "name": "update-docs",
-  "description": "Scans the repo to propose documentation and specification updates, writing docs/AUTOGEN_DOCS.md.",
-  "entrypoint": "docs.sh"
-}

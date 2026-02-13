@@ -47,15 +47,15 @@ for d in doc docs; do
 done
 
 # scripts and shebangs
-grep -RIn --exclude-dir=.git --exclude-dir=run --exclude-dir=logs -E "^#!.*(sh|bash|python|node|perl)" . >"$out/raw/shebangs.txt" 2>/dev/null || true
+find . -path "./.git" -prune -o -path "./run" -prune -o -path "./logs" -prune -o -type f -print0 2>/dev/null | xargs -0 grep -InE "^#!.*(sh|bash|python|node|perl)" >"$out/raw/shebangs.txt" 2>/dev/null || true
 
 # TODOs / FIXMEs
-grep -RIn --exclude-dir=.git -E "TODO|FIXME" . >"$out/raw/todos.txt" 2>/dev/null || true
+find . -path "./.git" -prune -o -type f -print0 2>/dev/null | xargs -0 grep -InE "TODO|FIXME" >"$out/raw/todos.txt" 2>/dev/null || true
 todo_count=$(wc -l <"$out/raw/todos.txt" 2>/dev/null || echo 0)
 
 # keyword search relevant to prime directive
 keywords="agent|swarm|autonom|self[- ]?improv|self[- ]?optimi|evolv|optimi|decentral|secure|copilot|supervisor|daemon|director"
-grep -RIn --exclude-dir=.git -E "$keywords" . >"$out/raw/keywords.txt" 2>/dev/null || true
+find . -path "./.git" -prune -o -type f -print0 2>/dev/null | xargs -0 grep -InE "$keywords" >"$out/raw/keywords.txt" 2>/dev/null || true
 keyword_count=$(wc -l <"$out/raw/keywords.txt" 2>/dev/null || echo 0)
 
 # file type summary

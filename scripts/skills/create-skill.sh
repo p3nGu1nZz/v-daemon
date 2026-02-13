@@ -92,7 +92,10 @@ cat >"$out/report.json" <<JSON
 JSON
 echo "Wrote $out/report.txt and $out/report.json"
 SCRIPT_CHILD
-    sed -i "s/REPLACE_NAME/$SKILL_NAME/g" "$script_file" || true
+    # Portable in-place replace: write to temp and move (macOS/BSD compatible)
+    tmpf="$(mktemp "${script_file}.tmp.XXXXXX")" || tmpf="${script_file}.tmp.$$"
+    sed "s/REPLACE_NAME/$SKILL_NAME/g" "$script_file" >"$tmpf" 2>/dev/null || true
+    mv "$tmpf" "$script_file" 2>/dev/null || cp "$tmpf" "$script_file" 2>/dev/null || true
     chmod +x "$script_file"
     created_files="$created_files
 $script_file"
