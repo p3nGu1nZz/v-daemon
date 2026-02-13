@@ -12,6 +12,8 @@ usage() {
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Ensure runtime directories exist so tools and scripts can write logs and pidfiles
+mkdir -p "$REPO_ROOT/run" "$REPO_ROOT/logs" "$REPO_ROOT/audits" 2>/dev/null || true
 
 run_checks() {
   echo "Checking required commands..."
