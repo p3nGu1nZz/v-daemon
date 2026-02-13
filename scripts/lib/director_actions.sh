@@ -270,7 +270,7 @@ EOF
     else
       # Sanitization removed everything; keep raw for debugging and write a clear message into summary_file
       printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot output contained only artifacts and was not suitable; raw output saved to %s/copilot_raw.txt\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" >>"$LOGFILE" 2>/dev/null || true
-      printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot output contained only artifacts and was not suitable; raw output saved to %s/copilot_raw.txt\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" || true
+
       printf 'Copilot did not provide a usable summary: see copilot_raw.txt for full output.\n' >"$summary_file" 2>/dev/null || true
     fi
   else
