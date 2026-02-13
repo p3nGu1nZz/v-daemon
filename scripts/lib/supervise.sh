@@ -42,9 +42,10 @@ is_pid_for_script() {
   return 1
 }
 
-# Helper: find any existing daemon process running that matches the daemon script path or basename
+# Helper: find any existing daemon process running that matches the daemon script path
 find_existing_daemon() {
-  EXISTING="$(ps -eo pid,args | awk -v pat1="$DAEMON" -v pat2="$DAEMON_BASENAME" '$0 ~ pat1 || $0 ~ pat2 {print $1}')"
+  # Prefer matching the full daemon script path to avoid false positives in command args
+  EXISTING="$(ps -eo pid,args 2>/dev/null | grep -F "$DAEMON" 2>/dev/null | awk '{print $1}')"
   for p in $EXISTING; do
     if [ -z "$p" ]; then
       continue
