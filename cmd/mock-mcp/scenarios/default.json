@@ -1,9 +1,0 @@
-{
-  "name": "default",
-  "mappings": [
-    {
-      "match": { "type": "completion", "model": "claude" },
-      "response": "responses/completion-simple.json"
-    }
-  ]
-}
