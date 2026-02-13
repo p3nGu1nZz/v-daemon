@@ -15,7 +15,7 @@ mkdir -p "$TEST_AUDITS_DIR"
 export DEV_AUDITS_DIR="$TEST_AUDITS_DIR"
 
 # Start director in background
-nohup sh "$REPO_ROOT/scripts/lib/director.sh" >/dev/null 2>&1 &
+nohup bash "$REPO_ROOT/scripts/lib/director.sh" >/dev/null 2>&1 &
 PID=$!
 
 AUDITS="$DEV_AUDITS_DIR/director-heartbeats.jsonl"
