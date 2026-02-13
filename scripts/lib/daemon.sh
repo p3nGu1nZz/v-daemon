@@ -98,6 +98,7 @@ mkdir -p "$REPO_ROOT/logs"
 LOGFILE="${REPO_ROOT}/logs/daemon.log"
 DIRECTOR="${SCRIPT_DIR}/director.sh"
 DIRECTOR_PIDFILE="/tmp/v-director.pid"
+DIRECTOR_LOCK="/tmp/v-director.lock"
 DIRECTOR_LOG="${REPO_ROOT}/logs/director.log"
 # Source process controller if available
 if [ -f "$SCRIPT_DIR/process.sh" ]; then
@@ -150,9 +151,28 @@ ensure_director_running() {
     fi
   done
 
+  # If a director lock exists, adopt or skip starting to avoid races
+  if [ -d "$DIRECTOR_LOCK" ]; then
+    LOCK_OWNER="$(cat "$DIRECTOR_LOCK/pid" 2>/dev/null || true)"
+    if [ -n "$LOCK_OWNER" ] && kill -0 "$LOCK_OWNER" 2>/dev/null; then
+      if is_pid_for_script "$LOCK_OWNER" "$DIRECTOR"; then
+        echo "$LOCK_OWNER" >"$DIRECTOR_PIDFILE" 2>/dev/null || true
+        log "[DAEMON] director agent appears to be starting (lock owner PID $LOCK_OWNER), adopting"
+        return 0
+      else
+        # stale or unrelated lock owner, remove it
+        log "[DAEMON] director lock present but owner PID $LOCK_OWNER is not director; removing stale lock"
+        rm -rf "$DIRECTOR_LOCK" 2>/dev/null || true
+      fi
+    else
+      # stale lock, remove it
+      rm -rf "$DIRECTOR_LOCK" 2>/dev/null || true
+    fi
+  fi
+
   # Start the director and wait briefly for it to create its pidfile
   log "[DAEMON] starting director agent (initiated by daemon)"
-  nohup sh "$DIRECTOR" >>"$DIRECTOR_LOG" 2>&1 &
+  nohup bash "$DIRECTOR" >>"$DIRECTOR_LOG" 2>&1 &
   D_START=$!
   WAITED=0
   while [ $WAITED -lt 25 ]; do
@@ -168,8 +188,13 @@ ensure_director_running() {
   done
 
   if [ ! -f "$DIRECTOR_PIDFILE" ]; then
-    echo "$D_START" >"$DIRECTOR_PIDFILE" 2>/dev/null || true
-    log "[DAEMON] director agent started (PID $D_START) (pidfile created by daemon)"
+    # Only write fallback pidfile if the process we started still looks like the director
+    if is_pid_for_script "$D_START" "$DIRECTOR"; then
+      echo "$D_START" >"$DIRECTOR_PIDFILE" 2>/dev/null || true
+      log "[DAEMON] director agent started (PID $D_START) (pidfile created by daemon)"
+    else
+      log "[DAEMON] director helper process (PID $D_START) did not match director; not writing pidfile"
+    fi
   fi
   return 0
 }

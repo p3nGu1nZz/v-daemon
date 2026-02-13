@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 # Director agent: coordinates worker agents (minimal stub)
 set -eu
 
@@ -13,6 +13,7 @@ fi
 
 PIDFILE="/tmp/v-director.pid"
 LOCKDIR="/tmp/v-director.lock"
+SCRIPT_NAME="$(basename "$0")"
 
 # Acquire a simple lock using mkdir to avoid concurrent director instances
 acquire_lock() {
@@ -23,8 +24,17 @@ acquire_lock() {
     fi
     OWNER_PID="$(cat "$LOCKDIR/pid" 2>/dev/null || true)"
     if [ -n "$OWNER_PID" ] && kill -0 "$OWNER_PID" 2>/dev/null; then
-      # another active owner
-      return 1
+      # Check if the owner PID actually appears to be the director; if not, treat the lock as stale
+      cmdline="$(ps -p "$OWNER_PID" -o args= 2>/dev/null || true)"
+      if [ -n "$cmdline" ] && echo "$cmdline" | grep -F -q "$SCRIPT_NAME"; then
+        # another active owner that looks like the director
+        return 1
+      else
+        # Owner pid is some other process (pid reused) — remove stale lock and retry
+        rm -rf "$LOCKDIR" 2>/dev/null || true
+        sleep 0.1
+        continue
+      fi
     fi
     # stale lock, remove and retry
     rm -rf "$LOCKDIR" 2>/dev/null || true
@@ -73,17 +83,17 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 mkdir -p "$REPO_ROOT/logs"
 LOGFILE="${REPO_ROOT}/logs/director.log"
 
-printf '%s [AGENT-DIRECTOR] director agent starting (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$$" >>"$LOGFILE"
+echo "$(date +'%Y-%m-%dT%H:%M:%S%z') [AGENT-DIRECTOR] director agent starting (PID $$)" >>"$LOGFILE"
 # Source director actions (if present) and run autopilot summary asynchronously
 if [ -f "$SCRIPT_DIR/director_actions.sh" ]; then
   . "$SCRIPT_DIR/director_actions.sh"
   # run in background (non-blocking) so director heartbeat continues
-  run_autopilot_summary >/dev/null 2>&1 &
+  run_autopilot_summary &
 fi
 
 # Main loop: emit heartbeat and placeholder for coordination logic
 while true; do
-  printf '%s [AGENT-DIRECTOR] heartbeat\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE"
+  echo "$(date +'%Y-%m-%dT%H:%M:%S%z') [AGENT-DIRECTOR] heartbeat" >>"$LOGFILE"
   # TODO: implement director coordination (spawn workers, RPC, task queue)
   sleep 60
 done

@@ -1,0 +1,50 @@
+Repository summary (fallback)
+Generated: 2026-02-13T03:42:28-0500
+
+README (top):
+# v-daemon
+
+v-daemon is a lightweight daemon project and the dev harness for the Director/Worker self-improvement loop ("DirectorDev"). This repository provides POSIX shell helper scripts to build, check, and run the daemon and director agent; C++ sources and a CMake-based build may be added under /src later. Use scripts/setup.sh to fetch Catch2 into external/Catch2 for unit tests, and scripts/build.sh to run CMake and Ninja when project CMake files are present.
+
+## Requirements
+
+- cmake
+- ninja
+- A C/C++ toolchain (g++ or clang)
+
+## Quick start
+
+
+Top TODOs:
+- [ ] Repo housekeeping: ensure build scripts, example configs, and README updates.
+- [ ] Implement process supervisor to spawn the director agent as a child process (or managed thread).
+- [ ] Add CLI flags for start/stop/status and a clean shutdown path.
+- [ ] Add a process controller utility (scripts/lib/process.sh) to register/start/stop managed processes and track run/*.pid files.
+- [ ] Director agent core:
+- [ ] Worker agent:
+- [ ] Integration test: Start supervisor → daemon → director spawns N workers → workers report ready → director assigns a job → workers complete job.
+- [ ] Implement task queue and autonomous scheduling/decision logic for the director.
+- [ ] Add auto-scaling rules, restart policies, and failure handling for workers.
+- [ ] Implement health checks, backoff strategies, and optional leader election for distributed runs.
+
+Top scripts:
+build.sh
+check.sh
+lib
+run.sh
+setup.sh
+
+Top-level files:
+LICENSE
+README.md
+TODO.md
+dev
+external
+logs
+run
+scripts
+
+File counts by dir:
+v-daemon: 814 files
+scripts: 10 files
+logs: 17 files

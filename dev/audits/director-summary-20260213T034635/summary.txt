@@ -1,0 +1,8 @@
+v-daemon is a lightweight POSIX-shell-based daemon and dev harness for a Director/Worker self-improvement loop with placeholders for C++ code (planned under /src) and a milestone-driven TODO for building autonomy and GitHub MCP integration. Key files: scripts/setup.sh (installs deps, fetches Catch2), scripts/check.sh (env checks), scripts/run.sh + scripts/lib/{daemon,director,supervise,...} (supervisor/agent stubs), and TODO.md describing milestones. To try it locally: sh scripts/setup.sh --yes, sh scripts/check.sh, then build out-of-source with mkdir -p build && cd build && cmake -G Ninja .. && ninja; there are no configured test targets yet although Catch2 can be fetched for future tests.
+
+Running repository checks (scripts/check.sh) to gather baseline and identify required changes; reporting intent 'Running checks'. I'll run the check script now.
+
+✗ Run repository environment checks
+  $ sh scripts/check.sh
+  Permission denied and could not request permission from user
+
