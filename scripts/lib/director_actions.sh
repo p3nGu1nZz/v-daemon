@@ -238,7 +238,15 @@ EOF
 
       # Prepare and print excerpt
       excerpt_raw=$(tr '\n' ' ' <"$summary_file" | sed 's/[[:space:]]\+/ /g' | sed 's/^ *//;s/ *$//')
-      excerpt=$(printf '%s' "$excerpt_raw" | cut -c 1-250)
+      # determine length (bytes/chars) and truncate to 200 characters, appending "..." when truncated
+      excerpt_len=$(printf '%s' "$excerpt_raw" | wc -c)
+      excerpt_len=$(printf '%s' "$excerpt_len" | tr -d '[:space:]')
+      if [ -n "$excerpt_len" ] && [ "$excerpt_len" -gt 200 ]; then
+        excerpt=$(printf '%s' "$excerpt_raw" | cut -c 1-200)
+        excerpt="$excerpt..."
+      else
+        excerpt="$excerpt_raw"
+      fi
       printf '%s [AGENT-DIRECTOR] summary excerpt: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$excerpt" >>"$LOGFILE" 2>/dev/null || true
       printf '%s [AGENT-DIRECTOR] summary excerpt: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$excerpt" || true
 
