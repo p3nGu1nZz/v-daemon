@@ -159,6 +159,9 @@ fi
 cleanup_and_exit() {
   echo "Caught interrupt; shutting down supervisor and daemon..." >&2
 
+  # Attempt to restore terminal state
+  stty sane 2>/dev/null || true
+
   # Kill any tails streaming logs
   [ -n "${TAIL_D:-}" ] && kill "$TAIL_D" 2>/dev/null || true
   [ -n "${TAIL_S:-}" ] && kill "$TAIL_S" 2>/dev/null || true
@@ -413,11 +416,11 @@ handle_command() {
 
 # Input loop: reads single characters and updates shared monitor files under RUN_DIR
 input_loop() {
-  # Run in a subshell safe loop
+  # Run in main shell so stty changes affect the controlling terminal
   set +e
   OLDSTTY="$(stty -g 2>/dev/null || true)"
-  # enable char-at-a-time, no echo
-  stty -echo -icanon time 0 min 0 2>/dev/null || true
+  # enable char-at-a-time, no echo; block until at least 1 byte
+  stty -echo -icanon min 1 time 0 2>/dev/null || true
 
   focus_file="$RUN_DIR/monitor_focus"
   sel_file="$RUN_DIR/monitor_selected"
@@ -437,18 +440,17 @@ input_loop() {
   NL="$(printf '\n')"
 
   while :; do
-    # read one byte (non-blocking due to stty settings)
+    # read one byte (blocking until input available)
     c="$(dd bs=1 count=1 2>/dev/null || true)"
     if [ -z "$c" ]; then
-      sleep 0.05
+      # nothing read; continue
       continue
     fi
 
     if [ "$c" = "$ESC" ]; then
-      # attempt to read two more bytes for arrow sequences
-      c2="$(dd bs=1 count=1 2>/dev/null || true)"
-      c3="$(dd bs=1 count=1 2>/dev/null || true)"
-      seq="$c$c2$c3"
+      # read next two bytes for arrow sequences (blocking)
+      seq_tail="$(dd bs=1 count=2 2>/dev/null || true)"
+      seq="$c$seq_tail"
       if [ "$seq" = "$UP" ]; then
         focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
         if [ "$focus" = "tree" ]; then
@@ -510,11 +512,12 @@ monitor_foreground() {
 
   # ANSI color codes when writing to a terminal
   if [ -t 2 ]; then
-    RED='\033[31m'
-    GREEN='\033[32m'
-    YELLOW='\033[33m'
-    RESET='\033[0m'
-    INV='\033[7m'
+    ESC="$(printf '\033')"
+    RED="${ESC}[31m"
+    GREEN="${ESC}[32m"
+    YELLOW="${ESC}[33m"
+    RESET="${ESC}[0m"
+    INV="${ESC}[7m"
   else
     RED=''
     GREEN=''
@@ -592,8 +595,7 @@ monitor_foreground() {
   fi
 
   # Start interactive input loop for monitor (reads single-key input and manages focus)
-  input_loop &
-  INPUT_PID=$!
+  # input_loop will be launched in the foreground after the refresher is started
 
   # Background refresher to update an anchored status line with uptime/errors/swarm state
   monitor_start_ts=$(date +%s)
@@ -608,10 +610,16 @@ monitor_foreground() {
   LAST_LOG_MTIME=""
   LAST_ERROR_COUNT=0
   CURSOR_TOG=1
+  LAST_SEL=""
+  LAST_FOCUS=""
+  LAST_BUF=""
+  LAST_CURSOR_TOG="${CURSOR_TOG:-1}"
 
   refresh_status_loop() {
     while :; do
       now_ts=$(date +%s)
+      # toggle cursor state each loop so blinking is visible even if other state hasn't changed
+      CURSOR_TOG=$((1 - ${CURSOR_TOG:-1}))
       # Uptime: prefer daemon pidfile mtime, fall back to monitor runtime
       if [ -f "$DAEMON_PIDFILE" ]; then
         pf_mtime=$(stat -c %Y "$DAEMON_PIDFILE" 2>/dev/null || true)
@@ -810,19 +818,17 @@ monitor_foreground() {
           LAST_STATUS_LINE="$status_line"
         fi
       else
-        # Only redraw when status or tree count changes
-        if [ "${status_line}" != "${LAST_STATUS_LINE}" ] || [ "$tree_count" != "${LAST_TREE_COUNT:-}" ]; then
+        # Redraw when status, tree count, selection, focus, buffer, or cursor state changes
+        SEL="$(cat "$RUN_DIR/monitor_selected" 2>/dev/null || echo 1)"
+        FOCUS="$(cat "$RUN_DIR/monitor_focus" 2>/dev/null || echo cmd)"
+        BUF="$(cat "$RUN_DIR/monitor_input_buf" 2>/dev/null || echo '')"
+        if [ "${status_line}" != "${LAST_STATUS_LINE}" ] || [ "$tree_count" != "${LAST_TREE_COUNT:-}" ] || [ "$SEL" != "${LAST_SEL:-}" ] || [ "$FOCUS" != "${LAST_FOCUS:-}" ] || [ "$BUF" != "${LAST_BUF:-}" ] || [ "${CURSOR_TOG:-0}" != "${LAST_CURSOR_TOG:-}" ]; then
           # move to bottom and up by (tree_count+1) lines to leave room for an input prompt
           printf '\033[s\033[999B' >&2
           move_up=$((tree_count + 1))
           if [ "$move_up" -gt 0 ]; then
             printf '\033[%dA' "$move_up" >&2
           fi
-
-          # read selection, focus, and buffer
-          SEL="$(cat "$RUN_DIR/monitor_selected" 2>/dev/null || echo 1)"
-          FOCUS="$(cat "$RUN_DIR/monitor_focus" 2>/dev/null || echo cmd)"
-          BUF="$(cat "$RUN_DIR/monitor_input_buf" 2>/dev/null || echo '')"
 
           n=0
           total=$(wc -l <"$tree_tmp" 2>/dev/null || echo 0)
@@ -866,13 +872,14 @@ monitor_foreground() {
           fi
           printf '\033[2K\r%s\n' "$prompt" >&2
 
-          # toggle cursor for next draw
-          CURSOR_TOG=$((1 - ${CURSOR_TOG:-1}))
-
           # print final status line (no newline) and restore cursor
           printf '\033[2K\r%s\033[u' "$status_line" >&2
           LAST_STATUS_LINE="$status_line"
           LAST_TREE_COUNT="$tree_count"
+          LAST_SEL="$SEL"
+          LAST_FOCUS="$FOCUS"
+          LAST_BUF="$BUF"
+          LAST_CURSOR_TOG="${CURSOR_TOG:-0}"
         fi
       fi
       rm -f "$tree_tmp" 2>/dev/null || true
@@ -912,6 +919,8 @@ monitor_foreground() {
     done
   }
   refresh_status_loop & STATUS_PID=$!
+  # Run input loop in foreground so it can read the terminal reliably
+  input_loop
 
   # Wait on background tails; trap will handle cleanup on INT/TERM
   wait
