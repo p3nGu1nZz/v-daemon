@@ -13,7 +13,7 @@ Usage examples
 
 Behavior and stopping
 
-- PID files: /tmp/v-daemon.pid (daemon), /tmp/v-daemon-supervisor.pid (supervisor), /tmp/v-director.pid (director)
+- PID files: run/v-daemon.pid (daemon), run/v-daemon-supervisor.pid (supervisor), run/v-director.pid (director)
 - Logs: ./logs/daemon.log, ./logs/supervisor.log, ./logs/director.log
 - When running with --monitor, pressing Ctrl-C triggers a graceful shutdown. The monitor trap calls cleanup_and_exit which runs stop_all and exits with code 130.
 - For non-interactive or remote shutdowns, prefer: sh scripts/run.sh stop — this will attempt a graceful stop, kill orphans, rotate logs, and remove pidfiles.

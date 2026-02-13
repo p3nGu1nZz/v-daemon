@@ -6,7 +6,7 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   cat <<'USAGE'
 Usage: sh scripts/lib/director.sh
 
-Director agent stub: writes PID to /tmp/v-director.pid and heartbeats to ./logs/director.log
+Director agent stub: writes PID to run/v-director.pid and heartbeats to ./logs/director.log
 USAGE
   exit 0
 fi

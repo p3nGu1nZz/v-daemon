@@ -106,3 +106,52 @@ proc_list_registered() {
     printf '%s %s\n' "$nm" "$pid"
   done
 }
+
+# Kill a process and its descendant process tree (children first).
+# Attempts to discover descendants via ps and kill them in reverse order.
+proc_kill_tree() {
+  root="$1"
+  if [ -z "$root" ]; then
+    return 1
+  fi
+  tmp="$(mktemp "/tmp/proc_kill_XXXXXX")" || tmp="/tmp/proc_kill_$root"
+  echo "$root" >"$tmp"
+
+  # Expand children until stable
+  while :; do
+    prev=$(wc -l <"$tmp" 2>/dev/null || echo 0)
+    for pid in $(cat "$tmp"); do
+      for child in $(ps -eo pid,ppid 2>/dev/null | awk -v p="$pid" '$2==p {print $1}'); do
+        if ! grep -q "^$child$" "$tmp" 2>/dev/null; then
+          echo "$child" >>"$tmp"
+        fi
+      done
+    done
+    now=$(wc -l <"$tmp" 2>/dev/null || echo 0)
+    if [ "$now" -eq "$prev" ]; then
+      break
+    fi
+  done
+
+  # Kill in reverse order (children first)
+  for pid in $(awk '{a[NR]=$0} END{for(i=NR;i>=1;i--)print a[i]}' "$tmp"); do
+    if kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+    fi
+  done
+
+  sleep 0.2
+
+  for pid in $(awk '{a[NR]=$0} END{for(i=NR;i>=1;i--)print a[i]}' "$tmp"); do
+    if kill -0 "$pid" 2>/dev/null; then
+      kill -TERM "$pid" 2>/dev/null || true
+      sleep 0.1
+      if kill -0 "$pid" 2>/dev/null; then
+        kill -9 "$pid" 2>/dev/null || true
+      fi
+    fi
+  done
+
+  rm -f "$tmp" 2>/dev/null || true
+  return 0
+}

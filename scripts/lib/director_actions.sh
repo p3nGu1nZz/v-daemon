@@ -242,8 +242,8 @@ EOF
       excerpt_len=$(printf '%s' "$excerpt_raw" | wc -c)
       excerpt_len=$(printf '%s' "$excerpt_len" | tr -d '[:space:]')
       if [ -n "$excerpt_len" ] && [ "$excerpt_len" -gt 200 ]; then
-        excerpt=$(printf '%s' "$excerpt_raw" | cut -c 1-200)
-        excerpt="$excerpt..."
+        excerpt=$(printf '%s' "$excerpt_raw" | cut -c 1-197)
+        excerpt="${excerpt}..."
       else
         excerpt="$excerpt_raw"
       fi
@@ -360,11 +360,13 @@ PLANPROMPT
 
     printf '%s [AGENT-DIRECTOR] Autopilot plan: plan saved to %s (tasks: %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" "$plan_tasks" >>"$LOGFILE" 2>/dev/null || true
 
-    # Print a brief excerpt of the tasks to console for visibility
+    # Print a brief excerpt of the tasks to console for visibility (truncate lines to 200 chars)
     if [ -s "$plan_tasks" ]; then
       printf '%s [AGENT-DIRECTOR] plan excerpt:\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
-      sed -n '1,12p' "$plan_tasks" >>"$LOGFILE" 2>/dev/null || true
-      sed -n '1,12p' "$plan_tasks" || true
+      # Truncate lines for logfile (first 12)
+      awk 'length($0)>200 {print substr($0,1,197) "..."; next} {print}' "$plan_tasks" | sed -n '1,12p' >>"$LOGFILE" 2>/dev/null || true
+      # Truncate lines for console (first 12)
+      awk 'length($0)>200 {print substr($0,1,197) "..."; next} {print}' "$plan_tasks" | sed -n '1,12p' || true
     fi
   else
     printf '%s [AGENT-DIRECTOR] Autopilot plan: copilot CLI not found; skipping plan\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true

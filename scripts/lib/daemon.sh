@@ -6,7 +6,7 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   cat <<'USAGE'
 Usage: sh scripts/lib/daemon.sh
 
-Minimal daemon loop that writes heartbeat to ./logs/daemon.log and PID to /tmp/v-daemon.pid.
+Minimal daemon loop that writes heartbeat to ./logs/daemon.log and PID to run/v-daemon.pid.
 Intended to be managed by scripts/run.sh supervisor.
 USAGE
   exit 0

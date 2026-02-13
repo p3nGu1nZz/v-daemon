@@ -7,7 +7,7 @@ Focus immediately on Milestone 1: provide a working repository and a minimal sup
 Constraints
 
 - All code and scripting remains pure POSIX sh (use /usr/bin/env sh shebang). Do not add bash-only features or other languages.
-- Do not introduce SQLite or any database; store runtime state in the filesystem under run/, logs/, and dev/audits/.
+- Do not introduce SQLite or any database; store runtime state in the filesystem under run/ and logs/.
 
 ---
 

@@ -35,11 +35,9 @@ Development
 
 - scripts/setup.sh can fetch Catch2 into external/Catch2 for unit testing.
 - Add a top-level CMakeLists.txt and test targets to enable building tests; then run ctest or ninja test from build/.
-- The dev/ directory contains harness scripts and audit logs used during local development.
 
 Repository layout
 
-- dev/ — development harness, example agents, and audit logs
 - external/ — third-party dependencies (Catch2, etc.)
 - logs/ — durable logs produced by runs
 - run/ — runtime artifacts (PID files, sockets)
