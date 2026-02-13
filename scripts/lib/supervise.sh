@@ -4,13 +4,17 @@ set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# Load configuration and defaults
+if [ -f "$REPO_ROOT/scripts/lib/config.sh" ]; then
+  . "$REPO_ROOT/scripts/lib/config.sh"
+  config_init "$REPO_ROOT"
+fi
 DAEMON="${SCRIPT_DIR}/daemon.sh"
-RUN_DIR="${REPO_ROOT}/run"
-mkdir -p "$RUN_DIR" "$REPO_ROOT/logs"
-DAEMON_PIDFILE="${RUN_DIR}/v-daemon.pid"
-SUP_PIDFILE="${RUN_DIR}/v-daemon-supervisor.pid"
-LOGFILE="${REPO_ROOT}/logs/daemon.log"
-SUP_LOGFILE="${REPO_ROOT}/logs/supervisor.log"
+mkdir -p "$RUN_DIR" "$LOG_DIR"
+DAEMON_PIDFILE="${DAEMON_PIDFILE:-$RUN_DIR/v-daemon.pid}"
+SUP_PIDFILE="${SUP_PIDFILE:-$RUN_DIR/v-daemon-supervisor.pid}"
+LOGFILE="${DAEMON_LOG:-$LOG_DIR/daemon.log}"
+SUP_LOGFILE="${SUP_LOGFILE:-$LOG_DIR/supervisor.log}"
 CHECK_INTERVAL="${CHECK_INTERVAL:-30}"
 
 # Write supervisor pidfile

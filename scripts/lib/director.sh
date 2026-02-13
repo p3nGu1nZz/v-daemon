@@ -11,8 +11,13 @@ USAGE
   exit 0
 fi
 
-PIDFILE="$(cd "$(dirname "$0")/../.." && pwd)/run/v-director.pid"
-LOCKDIR="$(cd "$(dirname "$0")/../.." && pwd)/run/v-director.lock"
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+if [ -f "$REPO_ROOT/scripts/lib/config.sh" ]; then
+  . "$REPO_ROOT/scripts/lib/config.sh"
+  config_init "$REPO_ROOT"
+fi
+PIDFILE="${RUN_DIR}/v-director.pid"
+LOCKDIR="${RUN_DIR}/v-director.lock"
 SCRIPT_NAME="$(basename \"$0\")"
 
 # Acquire a simple lock using mkdir to avoid concurrent director instances
