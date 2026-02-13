@@ -287,29 +287,37 @@ state_sleep() {
   echo "summarize"
 }
 
-# Initial HFSM state
-CURRENT_STATE="load_actions"
+# HFSM setup: register states and handlers using scripts/lib/hfsm.sh
+if [ -f "$REPO_ROOT/scripts/lib/hfsm.sh" ]; then
+  . "$REPO_ROOT/scripts/lib/hfsm.sh"
+else
+  log "hfsm.sh not found; continuing with simple loop fallback"
+fi
 
+hfsm_create director_hfsm
+hfsm_add_state director_hfsm load_actions
+hfsm_add_state director_hfsm summarize
+hfsm_add_state director_hfsm next_steps
+hfsm_add_state director_hfsm select_task
+hfsm_add_state director_hfsm patch_repo
+hfsm_add_state director_hfsm merge_up
+hfsm_add_state director_hfsm sleep
+
+hfsm_set_handler director_hfsm load_actions RUN state_load_actions
+hfsm_set_handler director_hfsm summarize RUN state_summarize
+hfsm_set_handler director_hfsm next_steps RUN state_next_steps
+hfsm_set_handler director_hfsm select_task RUN state_select_task
+hfsm_set_handler director_hfsm patch_repo RUN state_patch_repo
+hfsm_set_handler director_hfsm merge_up RUN state_merge_up
+hfsm_set_handler director_hfsm sleep RUN state_sleep
+
+hfsm_init director_hfsm load_actions
+
+# Main loop: dispatch RUN event to HFSM handlers; handlers emit next-state names to transition
 while true; do
-  # heartbeat
   log "heartbeat"
-  case "$CURRENT_STATE" in
-    load_actions)
-      CURRENT_STATE="$(state_load_actions)" ;;
-    summarize)
-      CURRENT_STATE="$(state_summarize)" ;;
-    next_steps)
-      CURRENT_STATE="$(state_next_steps)" ;;
-    select_task)
-      CURRENT_STATE="$(state_select_task)" ;;
-    patch_repo)
-      CURRENT_STATE="$(state_patch_repo)" ;;
-    merge_up)
-      CURRENT_STATE="$(state_merge_up)" ;;
-    sleep)
-      CURRENT_STATE="$(state_sleep)" ;;
-    *)
-      log "unknown state '$CURRENT_STATE', resetting to summarize"
-      CURRENT_STATE="summarize" ;;
-  esac
+  if ! hfsm_dispatch director_hfsm RUN; then
+    log "HFSM dispatch failed; resetting to summarize"
+    hfsm_transition director_hfsm summarize
+  fi
 done

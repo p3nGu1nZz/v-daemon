@@ -11,8 +11,8 @@ USAGE
   exit 0
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" >/dev/null 2>&1 && pwd || printf '%s' "$(pwd)")"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." >/dev/null 2>&1 && pwd || printf '%s' "$(pwd)")"
 
 # Load env and sql helpers if present
 if [ -f "$REPO_ROOT/scripts/lib/env.sh" ]; then
@@ -27,10 +27,14 @@ fi
 
 # parse args
 RUN_SQL=0
+RUN_DIRECTOR=0
 for arg in "$@"; do
   case "$arg" in
     --sql)
       RUN_SQL=1
+      ;;
+    --director)
+      RUN_DIRECTOR=1
       ;;
     --help|-h)
       ;;
@@ -39,8 +43,8 @@ for arg in "$@"; do
   esac
 done
 
-# Default: run SQL tests by default
-if [ "$RUN_SQL" -eq 0 ]; then
+# Default: run SQL tests by default unless a different test is explicitly requested
+if [ "$RUN_SQL" -eq 0 ] && [ "$RUN_DIRECTOR" -eq 0 ]; then
   RUN_SQL=1
 fi
 
@@ -56,10 +60,19 @@ if [ "$RUN_SQL" -eq 1 ]; then
   out=$(sql_query "SELECT id FROM todos WHERE id='$id_esc' LIMIT 1;")
   if [ "$(printf "%s" "$out")" = "$id" ]; then
     echo "SQL smoke test passed: $id"
-    exit 0
   else
     echo "SQL smoke test failed" >&2
     exit 3
+  fi
+fi
+
+if [ "$RUN_DIRECTOR" -eq 1 ]; then
+  if [ -f "$REPO_ROOT/scripts/tests/test-director-hfsm.sh" ]; then
+    sh "$REPO_ROOT/scripts/tests/test-director-hfsm.sh"
+    exit $?
+  else
+    echo "Director test script missing: $REPO_ROOT/scripts/tests/test-director-hfsm.sh" >&2
+    exit 2
   fi
 fi
 
