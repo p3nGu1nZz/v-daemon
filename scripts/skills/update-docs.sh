@@ -51,11 +51,12 @@ commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
 branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 
 # Write a simple JSON report
+ARGS_ESC="$(printf '%s ' "$@" | sed -e 's/"/\\"/g')"
 cat >"$OUTDIR/report.json" <<JSON
 {
   "timestamp": "$TIMESTAMP",
   "script": "scripts/docs.sh",
-  "args": "$(printf '%s ' "$@" | sed -e "s/\\"/\\\\\"/g")",
+  "args": "$ARGS_ESC",
   "exit_code": $RC,
   "commit": "$commit",
   "branch": "$branch",
