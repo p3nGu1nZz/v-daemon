@@ -185,13 +185,8 @@ if [ "${DIRECTIVE_PROVIDED:-0}" -eq 1 ]; then
   if [ -z "${DIRECTIVE_ARG:-}" ]; then
     if [ -f "$cfg" ]; then
       current="$(grep '^[[:space:]]*directive[[:space:]]*=' "$cfg" 2>/dev/null | sed -n 's/^[[:space:]]*directive[[:space:]]*=[[:space:]]*"\(.*\)".*/\1/p' || true)"
-      if [ -n "$current" ]; then
-        echo "$current"
-        exit 0
-      else
-        echo "No directive set in $cfg" >&2
-        exit 1
-      fi
+      echo "$current"
+      exit 0
     else
       echo "Config file $cfg not found" >&2
       exit 1
