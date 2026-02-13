@@ -62,6 +62,21 @@ if ! acquire_lock; then
 fi
 
 cleanup() {
+  # ensure director is stopped if we started it
+  if [ -n "${DIRECTOR_PIDFILE:-}" ]; then
+    if [ -f "$SCRIPT_DIR/process.sh" ]; then
+      stop_by_pidfile "$DIRECTOR_PIDFILE" || true
+    else
+      if [ -f "$DIRECTOR_PIDFILE" ]; then
+        DPID=$(cat "$DIRECTOR_PIDFILE" 2>/dev/null || true)
+        if [ -n "$DPID" ] && kill -0 "$DPID" 2>/dev/null; then
+          kill "$DPID" 2>/dev/null || true
+        fi
+        rm -f "$DIRECTOR_PIDFILE" 2>/dev/null || true
+      fi
+    fi
+  fi
+
   # only remove pidfile if it belongs to this process
   if [ -f "$PIDFILE" ] && [ "$(cat "$PIDFILE" 2>/dev/null || true)" = "$$" ]; then
     rm -f "$PIDFILE"
@@ -84,6 +99,10 @@ LOGFILE="${REPO_ROOT}/logs/daemon.log"
 DIRECTOR="${SCRIPT_DIR}/director.sh"
 DIRECTOR_PIDFILE="/tmp/v-director.pid"
 DIRECTOR_LOG="${REPO_ROOT}/logs/director.log"
+# Source process controller if available
+if [ -f "$SCRIPT_DIR/process.sh" ]; then
+  . "$SCRIPT_DIR/process.sh"
+fi
 
 # Helper: verify a PID corresponds to a running process whose cmdline contains the script path
 is_pid_for_script() {

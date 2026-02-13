@@ -91,8 +91,8 @@ while true; do
       else
         printf '%s [SUPERVISOR] Supervisor: starting daemon\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$SUP_LOGFILE"
         # Rotate logs before starting a new daemon if rotate script present and logfile non-empty
-        if [ -x "$REPO_ROOT/scripts/rotate_logs.sh" ] && [ -s "$LOGFILE" ]; then
-          sh "$REPO_ROOT/scripts/rotate_logs.sh" || true
+        if [ -x "$REPO_ROOT/scripts/lib/rotate_logs.sh" ] && [ -s "$LOGFILE" ]; then
+          sh "$REPO_ROOT/scripts/lib/rotate_logs.sh" || true
         fi
         nohup sh "$DAEMON" >>"$LOGFILE" 2>&1 &
         DAEMON_START_PID=$!
@@ -126,8 +126,8 @@ while true; do
     else
       printf '%s [SUPERVISOR] Supervisor: starting daemon (no pidfile)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$SUP_LOGFILE"
       # Rotate logs before starting a new daemon if rotate script present and logfile non-empty
-      if [ -x "$REPO_ROOT/scripts/rotate_logs.sh" ] && [ -s "$LOGFILE" ]; then
-        sh "$REPO_ROOT/scripts/rotate_logs.sh" || true
+      if [ -x "$REPO_ROOT/scripts/lib/rotate_logs.sh" ] && [ -s "$LOGFILE" ]; then
+        sh "$REPO_ROOT/scripts/lib/rotate_logs.sh" || true
       fi
       nohup sh "$DAEMON" >>"$LOGFILE" 2>&1 &
       DAEMON_START_PID=$!

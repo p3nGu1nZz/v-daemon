@@ -5,13 +5,19 @@ set -eu
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DAEMON="${SCRIPT_DIR}/lib/daemon.sh"
+DIRECTOR="${SCRIPT_DIR}/lib/director.sh"
 DAEMON_PIDFILE="/tmp/v-daemon.pid"
+DIRECTOR_PIDFILE="/tmp/v-director.pid"
 SUP_PIDFILE="/tmp/v-daemon-supervisor.pid"
 mkdir -p "$REPO_ROOT/logs"
 LOGFILE="${REPO_ROOT}/logs/daemon.log"
 SUP_LOGFILE="${REPO_ROOT}/logs/supervisor.log"
 DIRECTOR_LOG="${REPO_ROOT}/logs/director.log"
 CHECK_INTERVAL="${CHECK_INTERVAL:-30}"
+# Source process controller if available
+if [ -f "$SCRIPT_DIR/lib/process.sh" ]; then
+  . "$SCRIPT_DIR/lib/process.sh"
+fi
 
 # Helper: verify that a PID corresponds to a running process whose args contain the expected script path
 is_pid_for_script() {
@@ -127,6 +133,11 @@ cleanup_and_exit() {
   # Try to stop supervisor/daemon processes and any orphans
   stop_all
 
+  # Ensure director is stopped
+  if [ -n "${DIRECTOR_PIDFILE:-}" ] && [ -f "$SCRIPT_DIR/lib/process.sh" ]; then
+    stop_by_pidfile "$DIRECTOR_PIDFILE" || true
+  fi
+
   exit 130
 }
 
@@ -210,6 +221,43 @@ stop_all() {
       done
     fi
 
+    # Stop director via pidfile
+    if [ -f "$DIRECTOR_PIDFILE" ]; then
+      DPID2=$(cat "$DIRECTOR_PIDFILE" 2>/dev/null || true)
+      if [ -n "$DPID2" ] && kill -0 "$DPID2" 2>/dev/null; then
+        echo "Stopping director (PID $DPID2)" >&2
+        kill "$DPID2" 2>/dev/null || true
+        sleep 0.2
+        if kill -0 "$DPID2" 2>/dev/null; then
+          kill -TERM "$DPID2" 2>/dev/null || kill -9 "$DPID2" 2>/dev/null || true
+        fi
+      fi
+      rm -f "$DIRECTOR_PIDFILE" 2>/dev/null || true
+      FOUND=1
+    fi
+
+    # Kill any orphaned director processes under this repo
+    PIDS="$(ps -eo pid,args | awk -v pat=\"$DIRECTOR\" '$0 ~ pat {print $1}')"
+    if [ -n "$PIDS" ]; then
+      for p in $PIDS; do
+        if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
+          echo "Killing orphaned director process PID $p" >&2
+          kill "$p" 2>/dev/null || true
+          WAITED=0
+          while kill -0 "$p" 2>/dev/null && [ $WAITED -lt 15 ]; do
+            sleep 0.2
+            WAITED=$((WAITED+1))
+          done
+          if kill -0 "$p" 2>/dev/null; then
+            kill -9 "$p" 2>/dev/null || true
+          else
+            echo "Stopped orphaned director process PID $p" >&2
+          fi
+          FOUND=1
+        fi
+      done
+    fi
+
     if [ $FOUND -eq 0 ]; then
       break
     fi
@@ -266,8 +314,8 @@ case "${1:-}" in
       exit 0
     fi
     # Rotate logs before starting a fresh supervisor
-    if [ -x "$SCRIPT_DIR/rotate_logs.sh" ]; then
-      sh "$SCRIPT_DIR/rotate_logs.sh" || echo "Log rotation failed" >&2
+    if [ -x "$SCRIPT_DIR/lib/rotate_logs.sh" ]; then
+      sh "$SCRIPT_DIR/lib/rotate_logs.sh" || echo "Log rotation failed" >&2
     fi
     start_supervisor_bg
     if [ "$MONITOR" -eq 1 ]; then
@@ -279,8 +327,8 @@ case "${1:-}" in
     stop_all
 
     # Rotate logs after stopping supervisor/daemon
-    if [ -x "$SCRIPT_DIR/rotate_logs.sh" ]; then
-      sh "$SCRIPT_DIR/rotate_logs.sh" || echo "Log rotation failed" >&2
+    if [ -x "$SCRIPT_DIR/lib/rotate_logs.sh" ]; then
+      sh "$SCRIPT_DIR/lib/rotate_logs.sh" || echo "Log rotation failed" >&2
     fi
 
     if [ "$MONITOR" -eq 1 ]; then
