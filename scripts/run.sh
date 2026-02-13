@@ -366,6 +366,7 @@ monitor_foreground() {
   if [ "$SWARM_STATUS" != "swarm offline" ]; then
     INITIAL_ACTIVE=1
   fi
+  LAST_SWARM_STATUS="$SWARM_STATUS"
 
   refresh_status_loop() {
     while :; do
@@ -385,26 +386,54 @@ monitor_foreground() {
       uptime_fmt=$(printf '%d:%02d:%02d' $h $m $s)
 
       # Error count from logs (case-insensitive match on error/failed/exception)
-      ERRORS=0
       ERRORS=$(grep -i -E "error|failed|exception" "$LOGFILE" "$SUP_LOGFILE" "$DIRECTOR_LOG" 2>/dev/null | wc -l || true)
+
+      # Gather process list once per iteration for efficiency
+      if command -v ps_fallback >/dev/null 2>&1; then
+        PS_OUT=$(ps_fallback pid,args 2>/dev/null || true)
+      else
+        PS_OUT=$(ps -eo pid,args 2>/dev/null || true)
+      fi
 
       # Worker count
       WORKER_COUNT=0
-      if command -v ps_fallback >/dev/null 2>&1; then
-        WORKER_PIDS="$(ps_fallback pid,args 2>/dev/null | awk 'tolower($0) ~ /worker/ {print $1}' | sort -u)"
-      else
-        WORKER_PIDS="$(ps -eo pid,args 2>/dev/null | awk 'tolower($0) ~ /worker/ {print $1}' | sort -u)"
-      fi
+      WORKER_PIDS=$(printf '%s\n' "$PS_OUT" | awk 'tolower($0) ~ /worker/ {print $1}' | sort -u || true)
       for wp in $WORKER_PIDS; do
         if [ -n "$wp" ] && kill -0 "$wp" 2>/dev/null; then
           WORKER_COUNT=$((WORKER_COUNT+1))
         fi
       done
 
-      if [ "$WORKER_COUNT" -gt 0 ] || ([ -f "$SUP_PIDFILE" ] && kill -0 "$(cat \"$SUP_PIDFILE\")" 2>/dev/null); then
+      # Supervisor and daemon checks (prefer pidfiles)
+      SUP_ALIVE=0
+      if [ -f "$SUP_PIDFILE" ]; then
+        SUPPID=$(cat "$SUP_PIDFILE" 2>/dev/null || true)
+        if [ -n "$SUPPID" ] && kill -0 "$SUPPID" 2>/dev/null; then
+          SUP_ALIVE=1
+        fi
+      fi
+      DAEMON_ALIVE=0
+      if [ -f "$DAEMON_PIDFILE" ]; then
+        DPID=$(cat "$DAEMON_PIDFILE" 2>/dev/null || true)
+        if [ -n "$DPID" ] && kill -0 "$DPID" 2>/dev/null; then
+          DAEMON_ALIVE=1
+        fi
+      fi
+
+      if [ "$WORKER_COUNT" -gt 0 ] || [ "$SUP_ALIVE" -eq 1 ] || [ "$DAEMON_ALIVE" -eq 1 ]; then
         SWARM_STATUS="swarm running ($WORKER_COUNT workers)"
       else
         SWARM_STATUS="swarm offline"
+      fi
+
+      # Emit event line on status transitions
+      if [ "$SWARM_STATUS" != "$LAST_SWARM_STATUS" ]; then
+        if [ "$SWARM_STATUS" = "swarm offline" ]; then
+          printf '%s [SYSTEM] swarm went offline\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >&2
+        else
+          printf '%s [SYSTEM] swarm is now running (%d workers)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$WORKER_COUNT" >&2
+        fi
+        LAST_SWARM_STATUS="$SWARM_STATUS"
       fi
 
       status_line="[SYSTEM] Uptime: $uptime_fmt | errors: $ERRORS | $SWARM_STATUS"
@@ -420,6 +449,20 @@ monitor_foreground() {
         [ -n "${TAIL_DIR:-}" ] && kill "$TAIL_DIR" 2>/dev/null || true
         # Clear anchored status line with final state
         printf '\033[s\033[999B\033[2K\r%s\033[u' "[SYSTEM] swarm offline -- monitor exiting" >&2
+        break
+      fi
+
+      # If any of the tail processes exit unexpectedly, log and exit so callers don't hang
+      if [ -n "${TAIL_D:-}" ] && ! kill -0 "$TAIL_D" 2>/dev/null; then
+        printf '%s [SYSTEM] daemon log tail stopped; exiting monitor\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >&2
+        break
+      fi
+      if [ -n "${TAIL_S:-}" ] && ! kill -0 "$TAIL_S" 2>/dev/null; then
+        printf '%s [SYSTEM] supervisor log tail stopped; exiting monitor\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >&2
+        break
+      fi
+      if [ -n "${TAIL_DIR:-}" ] && ! kill -0 "$TAIL_DIR" 2>/dev/null; then
+        printf '%s [SYSTEM] director log tail stopped; exiting monitor\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >&2
         break
       fi
 
