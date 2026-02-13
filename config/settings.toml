@@ -18,7 +18,7 @@ director = "logs/director.log"
 # Heartbeat interval for the daemon in seconds
 heartbeat_interval_seconds = 30
 # Prime directive for agents. Agents should read this and align actions to this directive.
-directive = ""
+directive = "Build a recursive, autonomous development engine (Director) that can summarize, plan, implement small safe patches, verify results, and iterate under automated governance; human interaction is limited to starting and stopping the system and emergency intervention."
 # Whether agents may automatically push commits upstream by default (YOLO). If true, agents will push; if false, agents will merge locally but not push.
 yolo = true
 

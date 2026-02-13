@@ -190,14 +190,31 @@ fi
 # If directive arg provided, update the settings file and commit via patch-repo
 if [ "${DIRECTIVE_PROVIDED:-0}" -eq 1 ]; then
   cfg="$REPO_ROOT/config/settings.toml"
-  # If empty string requested, print current directive and exit
+  # If empty string requested, print current directive and exit; if empty in config, auto-derive from docs/TODO.md
   if [ -z "${DIRECTIVE_ARG:-}" ]; then
     if [ -f "$cfg" ]; then
       current="$(grep '^[[:space:]]*directive[[:space:]]*=' "$cfg" 2>/dev/null | sed -n 's/^[[:space:]]*directive[[:space:]]*=[[:space:]]*"\(.*\)".*/\1/p' || true)"
-      echo "$current"
-      exit 0
+      if [ -n "$current" ]; then
+        echo "$current"
+        exit 0
+      fi
     else
       echo "Config file $cfg not found" >&2
+      exit 1
+    fi
+    # Attempt to derive directive from TODO.md
+    TODO_FILE="$REPO_ROOT/TODO.md"
+    if [ -f "$TODO_FILE" ]; then
+      candidate="$(awk '/^##[[:space:]]*Prime directive/{found=1;next} found && NF{print; exit}' "$TODO_FILE" 2>/dev/null || true)"
+      if [ -n "$candidate" ]; then
+        DIRECTIVE_ARG="$candidate"
+        echo "Auto-derived prime directive: $DIRECTIVE_ARG"
+      else
+        echo "No prime directive found in $TODO_FILE" >&2
+        exit 1
+      fi
+    else
+      echo "No TODO.md found to derive directive" >&2
       exit 1
     fi
   fi
