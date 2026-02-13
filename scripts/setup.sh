@@ -34,6 +34,7 @@ run_checks() {
   check_cmd make
   check_cmd git
   check_cmd docker
+  check_cmd sqlite3
 
   # Copilot CLI is required by default; in CI mode it's optional
   if [ "${CI_MODE:-0}" -eq 1 ]; then
@@ -152,23 +153,23 @@ PKGS_BUILD=""
 
 if command -v apt-get >/dev/null 2>&1; then
   PM="apt"
-  PKGS="$PKGS_COMMON ninja-build build-essential"
+  PKGS="$PKGS_COMMON ninja-build build-essential sqlite3"
   INSTALL_CMD="sudo apt-get update && sudo apt-get install -y $PKGS"
 elif command -v dnf >/dev/null 2>&1; then
   PM="dnf"
-  PKGS="$PKGS_COMMON ninja-build gcc-c++ make"
+  PKGS="$PKGS_COMMON ninja-build gcc-c++ make sqlite"
   INSTALL_CMD="sudo dnf install -y $PKGS"
 elif command -v yum >/dev/null 2>&1; then
   PM="yum"
-  PKGS="$PKGS_COMMON ninja-build gcc-c++ make"
+  PKGS="$PKGS_COMMON ninja-build gcc-c++ make sqlite"
   INSTALL_CMD="sudo yum install -y $PKGS"
 elif command -v pacman >/dev/null 2>&1; then
   PM="pacman"
-  PKGS="$PKGS_COMMON base-devel ninja"
+  PKGS="$PKGS_COMMON base-devel ninja sqlite"
   INSTALL_CMD="sudo pacman -Sy --noconfirm $PKGS"
 elif command -v apk >/dev/null 2>&1; then
   PM="apk"
-  PKGS="$PKGS_COMMON build-base ninja"
+  PKGS="$PKGS_COMMON build-base ninja sqlite"
   INSTALL_CMD="sudo apk add --no-cache $PKGS"
 else
   echo "Unsupported package manager. Please manually install: cmake, ninja, a C++ compiler (g++/clang), make, git." >&2
