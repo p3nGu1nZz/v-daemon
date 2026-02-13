@@ -36,7 +36,7 @@ USAGE
 
 start_supervisor_bg() {
   # Start supervisor in background
-  nohup sh "$SCRIPT_DIR/supervise.sh" >>"$SUP_LOGFILE" 2>&1 &
+  nohup sh "$SCRIPT_DIR/lib/supervise.sh" >>"$SUP_LOGFILE" 2>&1 &
   BG_PID=$!
 
   # Wait for supervise.sh to write its pidfile and a startup entry in SUP_LOGFILE
@@ -190,7 +190,7 @@ case "${1:-}" in
 
     # Also kill any orphaned supervise.sh processes under this repo
     echo "Looking for orphaned supervisor processes..." >&2
-    PIDS="$(ps -eo pid,args | awk -v pat="$SCRIPT_DIR/supervise.sh" '$0 ~ pat {print $1}')"
+    PIDS="$(ps -eo pid,args | awk -v pat="$SCRIPT_DIR/lib/supervise.sh" '$0 ~ pat {print $1}')"
     if [ -n "$PIDS" ]; then
       for p in $PIDS; do
         if [ -z "$p" ]; then

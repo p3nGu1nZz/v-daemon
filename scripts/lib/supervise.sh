@@ -3,8 +3,8 @@
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-DAEMON="${SCRIPT_DIR}/lib/daemon.sh"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+DAEMON="${SCRIPT_DIR}/daemon.sh"
 DAEMON_PIDFILE="/tmp/v-daemon.pid"
 SUP_PIDFILE="/tmp/v-daemon-supervisor.pid"
 mkdir -p "$REPO_ROOT/logs"
