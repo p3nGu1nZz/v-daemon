@@ -3,8 +3,9 @@
 set -eu
 
 usage() {
-  echo "Usage: $0 [--yes|-y|--check|--clean]"
+  echo "Usage: $0 [--yes|-y|--ci|--check|--clean]"
   echo "Installs required packages (cmake, ninja, a C++ toolchain, git) for common Linux distros."
+  echo "Use --ci to run in CI mode (non-interactive); will skip or mock certain deps."
   echo "Use --check to run repository checks only (no installs)."
   echo "Use --clean to remove generated artifacts (audits, logs, run)."
   exit 1
@@ -33,7 +34,19 @@ run_checks() {
   check_cmd make
   check_cmd git
   check_cmd docker
-  check_cmd copilot
+  check_cmd sqlite3
+
+  # Copilot CLI is required by default; in CI mode it's optional
+  if [ "${CI_MODE:-0}" -eq 1 ]; then
+    echo "CI mode: copilot not required (skipping strict failure on missing copilot)"
+    if command -v copilot >/dev/null 2>&1; then
+      printf 'OK: copilot\n'
+    else
+      printf 'INFO: copilot not installed in CI mode\n'
+    fi
+  else
+    check_cmd copilot
+  fi
 
   # If copilot exists, verify it is usable
   if command -v copilot >/dev/null 2>&1; then
@@ -67,16 +80,20 @@ run_checks() {
 
   # Verify Catch2 test library exists in external/Catch2 (accept multiple layouts)
   CATCH_DIR="${REPO_ROOT}/external/Catch2"
-  if [ -d "$CATCH_DIR" ]; then
-    if [ -f "${CATCH_DIR}/single_include/catch2/catch.hpp" ] || [ -f "${CATCH_DIR}/single_include/catch2/catch_all.hpp" ] || [ -f "${CATCH_DIR}/src/catch2/catch_all.hpp" ] || [ -f "${CATCH_DIR}/src/catch2/catch.hpp" ]; then
-      echo "OK: Catch2 sources present at ${CATCH_DIR}"
+  if [ "${CI_MODE:-0}" -eq 1 ]; then
+    echo "CI mode: skipping Catch2 presence check (not required in CI)"
+  else
+    if [ -d "$CATCH_DIR" ]; then
+      if [ -f "${CATCH_DIR}/single_include/catch2/catch.hpp" ] || [ -f "${CATCH_DIR}/single_include/catch2/catch_all.hpp" ] || [ -f "${CATCH_DIR}/src/catch2/catch_all.hpp" ] || [ -f "${CATCH_DIR}/src/catch2/catch.hpp" ]; then
+        echo "OK: Catch2 sources present at ${CATCH_DIR}"
+      else
+        echo "MISSING: Catch2 headers not found in ${CATCH_DIR} (run scripts/setup.sh to fetch and/or generate single header)" >&2
+        missing=1
+      fi
     else
-      echo "MISSING: Catch2 headers not found in ${CATCH_DIR} (run scripts/setup.sh to fetch and/or generate single header)" >&2
+      echo "MISSING: Catch2 in external/Catch2 (run scripts/setup.sh to fetch)" >&2
       missing=1
     fi
-  else
-    echo "MISSING: Catch2 in external/Catch2 (run scripts/setup.sh to fetch)" >&2
-    missing=1
   fi
 
   if [ "$missing" -ne 0 ]; then
@@ -104,9 +121,11 @@ clean_artifacts() {
 FORCE=0
 CHECK_ONLY=0
 CLEAN=0
+CI_MODE=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -y|--yes) FORCE=1; shift;;
+    --ci) CI_MODE=1; shift;;
     --check) CHECK_ONLY=1; shift;;
     --clean) CLEAN=1; shift;;
     -h|--help) usage;;
@@ -124,28 +143,33 @@ if [ "$CHECK_ONLY" -eq 1 ]; then
   exit 0
 fi
 
+if [ "${CI_MODE:-0}" -eq 1 ]; then
+  echo "CI mode enabled: running non-interactively"
+  FORCE=1
+fi
+
 PKGS_COMMON="cmake git pkg-config ca-certificates curl"
 PKGS_BUILD=""
 
 if command -v apt-get >/dev/null 2>&1; then
   PM="apt"
-  PKGS="$PKGS_COMMON ninja-build build-essential"
+  PKGS="$PKGS_COMMON ninja-build build-essential sqlite3"
   INSTALL_CMD="sudo apt-get update && sudo apt-get install -y $PKGS"
 elif command -v dnf >/dev/null 2>&1; then
   PM="dnf"
-  PKGS="$PKGS_COMMON ninja-build gcc-c++ make"
+  PKGS="$PKGS_COMMON ninja-build gcc-c++ make sqlite"
   INSTALL_CMD="sudo dnf install -y $PKGS"
 elif command -v yum >/dev/null 2>&1; then
   PM="yum"
-  PKGS="$PKGS_COMMON ninja-build gcc-c++ make"
+  PKGS="$PKGS_COMMON ninja-build gcc-c++ make sqlite"
   INSTALL_CMD="sudo yum install -y $PKGS"
 elif command -v pacman >/dev/null 2>&1; then
   PM="pacman"
-  PKGS="$PKGS_COMMON base-devel ninja"
+  PKGS="$PKGS_COMMON base-devel ninja sqlite"
   INSTALL_CMD="sudo pacman -Sy --noconfirm $PKGS"
 elif command -v apk >/dev/null 2>&1; then
   PM="apk"
-  PKGS="$PKGS_COMMON build-base ninja"
+  PKGS="$PKGS_COMMON build-base ninja sqlite"
   INSTALL_CMD="sudo apk add --no-cache $PKGS"
 else
   echo "Unsupported package manager. Please manually install: cmake, ninja, a C++ compiler (g++/clang), make, git." >&2
@@ -172,29 +196,37 @@ if ! command -v ninja >/dev/null 2>&1 && command -v ninja-build >/dev/null 2>&1;
   sudo ln -sf "$(command -v ninja-build)" /usr/local/bin/ninja || true
 fi
 
-# Fetch Catch2 into external/Catch2
+# Fetch Catch2 into external/Catch2 (optional in CI)
 EXTERNAL_DIR="$REPO_ROOT/external"
 CATCH_DIR="$EXTERNAL_DIR/Catch2"
-if [ ! -d "$CATCH_DIR" ]; then
-  echo "Fetching Catch2 into $CATCH_DIR"
-  mkdir -p "$EXTERNAL_DIR"
-  if command -v git >/dev/null 2>&1; then
-    git clone --depth 1 https://github.com/catchorg/Catch2.git "$CATCH_DIR"
-    # remove git metadata to keep just the sources
-    rm -rf "$CATCH_DIR/.git" || true
-  else
-    echo "WARNING: git not found; cannot clone Catch2. Please install git or fetch Catch2 manually into $CATCH_DIR" >&2
-  fi
+if [ "${CI_MODE:-0}" -eq 1 ]; then
+  echo "CI mode: skipping Fetch Catch2 into $CATCH_DIR (not required in CI)"
 else
-  echo "Catch2 already present at $CATCH_DIR"
+  if [ ! -d "$CATCH_DIR" ]; then
+    echo "Fetching Catch2 into $CATCH_DIR"
+    mkdir -p "$EXTERNAL_DIR"
+    if command -v git >/dev/null 2>&1; then
+      git clone --depth 1 https://github.com/catchorg/Catch2.git "$CATCH_DIR"
+      # remove git metadata to keep just the sources
+      rm -rf "$CATCH_DIR/.git" || true
+    else
+      echo "WARNING: git not found; cannot clone Catch2. Please install git or fetch Catch2 manually into $CATCH_DIR" >&2
+    fi
+  else
+    echo "Catch2 already present at $CATCH_DIR"
+  fi
 fi
 
-# Install GitHub Copilot CLI if missing
-if ! command -v copilot >/dev/null 2>&1; then
-  echo "Copilot CLI not found; installing via https://gh.io/copilot-install"
-  curl -fsSL https://gh.io/copilot-install | bash
+# Install GitHub Copilot CLI if missing (skip in CI)
+if [ "${CI_MODE:-0}" -eq 1 ]; then
+  echo "CI mode: skipping Copilot CLI installation"
 else
-  echo "Copilot CLI already installed"
+  if ! command -v copilot >/dev/null 2>&1; then
+    echo "Copilot CLI not found; installing via https://gh.io/copilot-install"
+    curl -fsSL https://gh.io/copilot-install | bash
+  else
+    echo "Copilot CLI already installed"
+  fi
 fi
 
 echo "Setup complete. Example build: mkdir -p build && cd build && cmake -G Ninja .. && ninja -j$(nproc 2>/dev/null || echo 2)"
