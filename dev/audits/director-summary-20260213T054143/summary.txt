@@ -1,4 +1,0 @@
-Running repository checks with scripts/check.sh to verify environment and script health; reporting intent "Running checks" along with the check command.
-
-Scanning repository for bash shebangs and /tmp pidfile usage to identify POSIX sh violations and files referencing /tmp instead of run/.
-

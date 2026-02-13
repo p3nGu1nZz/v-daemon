@@ -1,4 +1,0 @@
-v-daemon is a lightweight POSIX-shell daemon and developer harness for a Director/Worker self-improvement loop; the repo includes helper scripts (scripts/setup.sh, scripts/check.sh, scripts/run.sh), minimal daemon/director stubs in scripts/lib, external/ for third‑party deps (Catch2), and logs/ plus dev/audits/ for runtime artifacts.  
-Build/test workflow is out-of-source CMake + Ninja (scripts/setup.sh installs deps and fetches Catch2); scripts/check.sh validates the environment and tests are expected to run via CMake/ctest once test targets are added.  
-TODO.md outlines milestones to implement the full daemon lifecycle, director/worker agents (heartbeats, task queue, autoscaling), and GitHub MCP Server integration—next practical steps are adding a cmd/daemon skeleton, a process controller (scripts/lib/process.sh), director/worker stubs, and an MCP client module.
-

@@ -1,3 +1,0 @@
-error: unknown option '--stdin'
-
-Try 'copilot --help' for more information.

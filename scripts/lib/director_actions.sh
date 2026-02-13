@@ -5,7 +5,7 @@ set -eu
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LOGFILE="${REPO_ROOT}/logs/director.log"
-DEV_AUDITS_DIR="$REPO_ROOT/dev/audits"
+DEV_AUDITS_DIR="$REPO_ROOT/audits"
 mkdir -p "$DEV_AUDITS_DIR"
 
 # Local summarizer fallback

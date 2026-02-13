@@ -45,3 +45,6 @@
 
 # Generated logs
 /logs/
+
+audits/
+dev/audits/
