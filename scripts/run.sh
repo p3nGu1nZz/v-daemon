@@ -581,14 +581,15 @@ monitor_foreground() {
 
   printf '%s [SYSTEM] Supervisor: %s | Daemon: %s | Uptime: %s | %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$SUP_RUNNING" "$DAEMON_RUNNING" "$UPTIME_FMT" "$SWARM_STATUS" >&2
 
-  # Do not stream logs by default; monitor displays live swarm status only
-  STREAM_LOGS="${STREAM_LOGS:-0}"
+  # Stream logs by default in monitor to show recent activity above the status panel
+  STREAM_LOGS="${STREAM_LOGS:-1}"
   if [ "${STREAM_LOGS}" -eq 1 ]; then
-    tail -n 0 -F "$LOGFILE" 2>/dev/null &
+    # show the last few lines for context, then follow
+    tail -n 10 -F "$LOGFILE" 2>/dev/null &
     TAIL_D=$!
-    tail -n 0 -F "$SUP_LOGFILE" 2>/dev/null | sed '/\[SUPERVISOR\]/! s/^/[SUPERVISOR] /' &
+    tail -n 10 -F "$SUP_LOGFILE" 2>/dev/null | sed '/\[SUPERVISOR\]/! s/^/[SUPERVISOR] /' &
     TAIL_S=$!
-    tail -n 0 -F "$DIRECTOR_LOG" 2>/dev/null &
+    tail -n 10 -F "$DIRECTOR_LOG" 2>/dev/null &
     TAIL_DIR=$!
   else
     TAIL_D=""
@@ -758,13 +759,29 @@ monitor_foreground() {
           grep -i 'director' "$regtmp" 2>/dev/null | while read -r nm pid; do
             [ -z "$nm" ] && continue
             status_plain="stopped"; status_col="$YELLOW"
-            if [ -n "$pid" ] && proc_is_running "$pid"; then status_plain="running"; status_col="$GREEN"; fi
+            if [ -n "$pid" ] && proc_is_running "$pid"; then
+              status_plain="running"; status_col="$GREEN"
+            else
+              # check for recent errors in director logs
+              if [ -f "$LOG_DIR/${nm}.log" ] && grep -i -E "error|failed|exception" "$LOG_DIR/${nm}.log" >/dev/null 2>&1; then
+                status_plain="error"; status_col="$RED"
+              elif [ -f "$DIRECTOR_LOG" ] && grep -i -E "error|failed|exception" "$DIRECTOR_LOG" >/dev/null 2>&1; then
+                status_plain="error"; status_col="$RED"
+              fi
+            fi
             printf '%s\n' "  [D] $nm (pid:${pid:-}) ${status_col}${status_plain}${RESET}" >> "$tree_tmp"
           done
         else
           dir_pid=""
           [ -f "$DIRECTOR_PIDFILE" ] && dir_pid="$(cat \"$DIRECTOR_PIDFILE\" 2>/dev/null || true)"
-          if [ -n "$dir_pid" ] && kill -0 "$dir_pid" 2>/dev/null; then status_plain="running"; status_col="$GREEN"; else status_plain="stopped"; status_col="$YELLOW"; fi
+          if [ -n "$dir_pid" ] && kill -0 "$dir_pid" 2>/dev/null; then
+            status_plain="running"; status_col="$GREEN"
+          else
+            status_plain="stopped"; status_col="$YELLOW"
+            if [ -f "$DIRECTOR_LOG" ] && grep -i -E "error|failed|exception" "$DIRECTOR_LOG" >/dev/null 2>&1; then
+              status_plain="error"; status_col="$RED"
+            fi
+          fi
           printf '%s\n' "  [D] director (pid:${dir_pid:-}) ${status_col}${status_plain}${RESET}" >> "$tree_tmp"
         fi
 

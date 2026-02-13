@@ -181,7 +181,9 @@ ensure_director_running() {
 
   # Start the director and wait briefly for it to create its pidfile
   log "[DAEMON] starting director agent (initiated by daemon)"
-  nohup sh "$DIRECTOR" >>"$DIRECTOR_LOG" 2>&1 &
+  # Ensure director runs under bash so scripts that rely on bash features (e.g., hfsm.sh)
+  # are interpreted correctly. Previously this used `sh` which can be dash on many systems.
+  nohup bash "$DIRECTOR" >>"$DIRECTOR_LOG" 2>&1 &
   D_START=$!
   WAITED=0
   while [ $WAITED -lt 25 ]; do
