@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
+# If invoked with a POSIX sh (not bash), re-exec with bash to ensure required features are available.
+if [ -z "${BASH_VERSION:-}" ]; then
+  if command -v bash >/dev/null 2>&1; then
+    exec bash "$0" "$@"
+  else
+    echo "Error: bash is required to run this script." >&2
+    exit 1
+  fi
+fi
 set -euo pipefail
+
 
 usage() {
   cat <<'USAGE'
