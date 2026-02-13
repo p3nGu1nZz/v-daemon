@@ -1,65 +1,58 @@
 # v-daemon
 
-v-daemon is a small supervisor/daemon and development harness for exercising a Director/Worker autonomous loop ("DirectorDev"). The repo provides POSIX shell helper scripts to set up dependencies, run repository checks, and exercise a simple supervisor + agent workflow. Native C/C++ components and CMake support are optional and supported when present.
+A lightweight supervisor and developer harness for experimenting with a Director/Worker autonomous loop.
 
-Status: early development — prime directive: build a recursive, fully autonomous development engine powered by Copilot CLI that continuously reviews, prioritizes, implements, and self-improves. See TODO.md for fast-track milestones and tasks aimed at achieving an initial working loop where 'sh scripts/run.sh start' launches the Director loop for extended autonomous operation.
+v-daemon provides small POSIX shell helpers to set up dependencies, run repository checks, and operate a simple supervisor + agent workflow. Optional native C/C++ components and CMake support are available but not required for most development.
 
-Design & architecture
-- See ./doc/architecture.md for an architecture overview and project vision.
-- Runtime settings: ./config/settings.toml
-- Key scripts:
-  - scripts/setup.sh — install dependencies and prepare the environment
-  - scripts/check.sh — run repository checks and validations
-  - scripts/run.sh — run the supervisor/daemon (development harness)
-  - scripts/lib/ — helper libraries used by the other scripts
+**Status:** Early development — the long-term goal is a safe, iterative engine that summarizes the repository, generates prioritized tasks, and (with operator approval) applies small, verifiable changes.
 
-Notes: Native C/C++ builds are optional; see scripts/setup.sh for instructions to fetch dependencies (external/Catch2) and to build with CMake + Ninja.
+## Quickstart
 
-Scripts are implemented as POSIX sh (/usr/bin/env sh); runtime settings are in ./config/settings.toml.
+1. Prepare your environment:
 
-Requirements
-
-- POSIX shell (sh)
-- cmake (optional, for C/C++ builds)
-- ninja (optional, for C/C++ builds)
-- A C/C++ toolchain (g++ or clang) if building native code
-
-Quickstart (Linux)
-
-1. Install/setup required tools and dependencies:
-
+   ```sh
    sh scripts/setup.sh --yes
+   ```
 
 2. Run repository checks:
 
-   sh scripts/check.sh
+   ```sh
+   sh scripts/setup.sh --check
+   ```
 
-3. Build (only if CMakeLists.txt exists):
+3. Start the supervisor/daemon:
 
-   mkdir -p build && cd build && cmake -G Ninja .. && ninja -j$(nproc 2>/dev/null || echo 2)
-
-4. Run the supervisor/daemon (development harness):
-
+   ```sh
    sh scripts/run.sh [--monitor]
+   ```
 
-Development
+## Key scripts
 
-- scripts/setup.sh can fetch Catch2 into external/Catch2 for unit testing.
-- Add a top-level CMakeLists.txt and test targets to enable building tests; then run ctest or ninja test from build/.
+- `scripts/setup.sh` — install or prepare dependencies and create `run/` and `logs/`
+- `scripts/setup.sh` — run repository checks (read-only by default)
+- `scripts/run.sh` — start/stop/status the supervisor and daemon
 
-Repository layout
+## Requirements
 
-- external/ — third-party dependencies (Catch2, etc.)
-- logs/ — durable logs produced by runs
-- run/ — runtime artifacts (PID files, sockets)
-- scripts/ — helper scripts (setup.sh, check.sh, run.sh, ...)
-- TODO.md — project milestones and tasks
+- POSIX `sh` (bash/sh)
+- CMake, Ninja, and a C/C++ toolchain only for native builds
 
-Contributing
+## Development
 
-- Open issues and PRs on GitHub; prefer small, focused PRs.
-- Do not commit secrets; store tokens in CI secrets or a vault.
+- Prefer small, focused PRs; run `scripts/setup.sh` before pushing.
+- Add tests under `build/` and integrate them into `scripts/setup.sh` and CI.
 
-License
+## Docs and resources
 
-See the LICENSE file in the repository root.
+- Architecture: `doc/architecture.md`
+- Agent docs: `AGENT.md` and `.github/skills/`
+- Runtime config: `config/settings.toml`
+
+## Contributing
+
+- Open issues and PRs on GitHub. Keep changes minimal and document acceptance criteria.
+- Never commit secrets.
+
+## License
+
+See the `LICENSE` file at the repository root.

@@ -1,40 +1,33 @@
 # Architecture & Vision
 
-Overview
-v-daemon is a lightweight supervisor/daemon and development harness to exercise a Director/Worker autonomous loop (DirectorDev). It favors small, reproducible shell-first workflows while offering optional native components (C/C++) built with CMake. Prime directive: evolve the repository into a recursive, autonomous development engine that self-reviews, self-prioritizes, and self-patches under the guidance of Copilot CLI; 'sh scripts/run.sh start' is the canonical entrypoint for the Director loop.
+## Overview
 
-Core components
-- Supervisor (v-daemon): process manager that starts, monitors, and restarts child processes; manages PID files in run/ and writes logs to logs/.
-- Director: the decision-making/orchestration component (the 'brain') that assigns work to workers and manages high-level workflows.
-- Worker: short-lived or persistent processes that perform tasks assigned by the Director.
-- Scripts: scripts/setup.sh, scripts/check.sh, scripts/run.sh and scripts/lib/ provide the developer-facing workflows for setup, validation, and running the supervisor.
-- Configuration: ./config/settings.toml controls runtime settings and environment defaults.
-- External deps: third-party libraries and test frameworks live under ./external/, e.g., Catch2 for unit testing.
+v-daemon is a small supervisor and development harness to explore a Director/Worker autonomous loop. It prioritizes small, auditable shell-first workflows with optional native extensions.
 
-Runtime layout
-- run/ — runtime artifacts (PID files, sockets)
-- logs/ — persistent logs for runs and test output
-- external/ — fetched third-party dependencies
-- build/ — out-of-source C/C++ builds (when CMakeLists.txt is added)
+## Components
 
-Design principles
-- Small and reproducible: prefer simple shell scripts for developer workflows that are easy to inspect and modify.
-- Optional native extension: support adding C/C++ components with CMake without forcing native toolchain on casual contributors.
-- Testability: easy to add unit and integration tests; scripts/setup.sh can fetch Catch2 into external/ for test builds.
-- Discoverability: documentation (README, AGENT.md, this architecture doc) should guide both humans and automation.
+- **Supervisor**: manages processes, PID files, restarts, and logs.
+- **Director**: orchestrates planning cycles and assigns work.
+- **Worker**: executes assigned tasks.
+- **Scripts**: `scripts/setup.sh`, `scripts/setup.sh`, `scripts/run.sh`, and `scripts/lib/` provide developer workflows.
+- **Configuration**: `config/settings.toml` controls runtime behavior.
 
-Vision & roadmap
-- Stabilize the supervisor/harness so it can be used for integration experiments and CI.
-- Add a formal Director/Worker reference implementation with test coverage.
-- Provide container images and systemd units for production deployments.
-- Expand automation skills (./.github/skills) and CI integrations for reproducible runs.
+## Principles
 
-How to contribute
-- Open small, focused PRs.
-- Use scripts/setup.sh to prepare your environment, run scripts/check.sh before pushing, and add tests where appropriate.
-- Document changes to scripts in AGENT.md so automation can keep working.
+- Small and auditable: prefer POSIX shell for discoverability.
+- Optional native: allow C/C++ components without requiring toolchains.
+- Safe by default: sandbox execution and require explicit operator consent for mutations.
+- Testable: make changes verifiable via `scripts/setup.sh`.
 
-Helpful commands
-- sh scripts/setup.sh --yes
-- sh scripts/check.sh
-- sh scripts/run.sh [--monitor]
+## Runtime layout
+
+- `run/`: PID files and runtime artifacts
+- `logs/`: persistent logs
+- `external/`: fetched dependencies
+- `build/`: optional out-of-source builds
+
+## Roadmap
+
+- Stabilize the supervisor and add CI checks.
+- Add a reference Director/Worker implementation and container images.
+- Expand automation skills and CI integrations.

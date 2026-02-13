@@ -103,7 +103,7 @@ fi
     ls -1 "$REPO_ROOT/scripts" 2>/dev/null | sed -n '1,200p' || true
     printf '\n'
     printf '%s\n' '--- key scripts snippets ---'
-    for f in "$REPO_ROOT/scripts/setup.sh" "$REPO_ROOT/scripts/run.sh" "$REPO_ROOT/scripts/check.sh" "$REPO_ROOT/scripts/lib/daemon.sh" "$REPO_ROOT/scripts/lib/director.sh" "$REPO_ROOT/scripts/lib/actions.sh"; do
+    for f in "$REPO_ROOT/scripts/setup.sh" "$REPO_ROOT/scripts/run.sh" "$REPO_ROOT/scripts/lib/daemon.sh" "$REPO_ROOT/scripts/lib/director.sh" "$REPO_ROOT/scripts/lib/actions.sh"; do
       if [ -r "$f" ]; then
         printf '\n--- %s (first 120 lines) ---\n' "$(basename \"$f\")"
         sed -n '1,120p' "$f" || true
@@ -247,7 +247,7 @@ fi
     mv "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || cp "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || true
     cleaned=$(mktemp "/tmp/director_cleaned_${run_ts}.XXXXXX") || cleaned="$out_dir/copilot_sanitized.txt"
     # filter out noise that looks like shell commands, permission errors, copilot help hints, or copilot planning artifacts
-    grep -i -v -E 'Permission denied|could not request permission|Try .*copilot --help|^\\$ |^\\s*✗|\\bReading\\b|\\bPrint\\b|\\bAsked user:|\\bUser responded:|Marking the inspection|parallel tool call|report intent|Running repository environment checks|sh scripts/check.sh|Shell execution is blocked|Attempt to read|^\\s*\\$' "$out_dir/copilot_raw.txt" > "$cleaned" 2>/dev/null || cp "$out_dir/copilot_raw.txt" "$cleaned" 2>/dev/null || true
+    grep -i -v -E 'Permission denied|could not request permission|Try .*copilot --help|^\\$ |^\\s*✗|\\bReading\\b|\\bPrint\\b|\\bAsked user:|\\bUser responded:|Marking the inspection|parallel tool call|report intent|Running repository environment checks|sh scripts/setup.sh --check|Shell execution is blocked|Attempt to read|^\\s*\\$' "$out_dir/copilot_raw.txt" > "$cleaned" 2>/dev/null || cp "$out_dir/copilot_raw.txt" "$cleaned" 2>/dev/null || true
 
     if [ -s "$cleaned" ]; then
       # Move sanitized version into the canonical summary file and keep copies

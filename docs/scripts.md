@@ -1,13 +1,15 @@
-Scripts
+# Scripts
 
-All scripts in scripts/ are implemented in POSIX sh and must use the shebang: /usr/bin/env sh. Ensure scripts are executable (chmod +x). The scripts directory includes the canonical runtime entrypoint 'scripts/run.sh' which is used to start the supervisor and the Director loop; as the project evolves, scripts may invoke sandboxed helpers or small, well-scoped helper programs to support the autonomous loop.
+All scripts are POSIX `sh` with `#!/usr/bin/env sh` and should be executable (`chmod +x`).
 
-Common usage:
-- sh scripts/setup.sh --yes  # fetch deps and create required directories (run/, logs/)
-- sh scripts/check.sh        # run repository checks and verify POSIX sh compliance
-- sh scripts/run.sh [--monitor]  # start/stop/status supervisor & daemon
+## Common commands
 
-Runtime settings
-Runtime settings live in ./config/settings.toml; update that file to change log and run paths or heartbeat intervals.
+- `sh scripts/setup.sh --yes` — prepare environment and optional dependencies.
+- `sh scripts/setup.sh --check` — run repository checks (use in CI).
+- `sh scripts/run.sh [--monitor]` — start/stop/status the supervisor and daemon; `--monitor` streams logs.
 
-See TODO.md for planned milestones and additional notes.
+## Guidelines for new scripts
+
+- Add a short header comment explaining purpose and usage.
+- Avoid unguarded package installs; require operator consent.
+- Use `run/` and `logs/` for runtime artifacts.

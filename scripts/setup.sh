@@ -3,19 +3,102 @@
 set -eu
 
 usage() {
-  echo "Usage: $0 [--yes|-y]"
+  echo "Usage: $0 [--yes|-y|--check]"
   echo "Installs required packages (cmake, ninja, a C++ toolchain, git) for common Linux distros."
+  echo "Use --check to run repository checks only (no installs)."
   exit 1
 }
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+run_checks() {
+  echo "Checking required commands..."
+  missing=0
+  check_cmd() {
+    if command -v "$1" >/dev/null 2>&1; then
+      printf "OK: %s\n" "$1"
+    else
+      printf "MISSING: %s\n" "$1"
+      missing=1
+    fi
+  }
+
+  check_cmd cmake
+  check_cmd ninja
+  check_cmd g++
+  check_cmd make
+  check_cmd git
+  check_cmd docker
+  check_cmd copilot
+
+  # If copilot exists, verify it is usable
+  if command -v copilot >/dev/null 2>&1; then
+    if copilot --version >/dev/null 2>&1; then
+      echo "OK: copilot CLI available"
+    else
+      echo "WARNING: copilot binary found but not responding to --version; it may need setup or login"
+      missing=1
+    fi
+  fi
+
+  if command -v docker >/dev/null 2>&1; then
+    if docker info >/dev/null 2>&1; then
+      echo "OK: docker daemon responding"
+    else
+      echo "WARNING: docker command found but daemon not responding; try: sudo systemctl start docker"
+      missing=1
+    fi
+  fi
+
+  # Detect WSL (optional)
+  if [ -f /proc/version ] && grep -qi microsoft /proc/version 2>/dev/null; then
+    echo "Environment: WSL detected"
+    # WSL-specific hint for Docker Desktop
+    if ! docker info >/dev/null 2>&1; then
+      echo "Hint: On WSL you may need Docker Desktop or to enable the Docker daemon for WSL."
+    fi
+  else
+    echo "Environment: non-WSL or undetected"
+  fi
+
+  # Verify Catch2 test library exists in external/Catch2 (accept multiple layouts)
+  CATCH_DIR="${REPO_ROOT}/external/Catch2"
+  if [ -d "$CATCH_DIR" ]; then
+    if [ -f "${CATCH_DIR}/single_include/catch2/catch.hpp" ] || [ -f "${CATCH_DIR}/single_include/catch2/catch_all.hpp" ] || [ -f "${CATCH_DIR}/src/catch2/catch_all.hpp" ] || [ -f "${CATCH_DIR}/src/catch2/catch.hpp" ]; then
+      echo "OK: Catch2 sources present at ${CATCH_DIR}"
+    else
+      echo "MISSING: Catch2 headers not found in ${CATCH_DIR} (run scripts/setup.sh to fetch and/or generate single header)" >&2
+      missing=1
+    fi
+  else
+    echo "MISSING: Catch2 in external/Catch2 (run scripts/setup.sh to fetch)" >&2
+    missing=1
+  fi
+
+  if [ "$missing" -ne 0 ]; then
+    echo "Some checks failed. Run scripts/setup.sh to install common packages (if supported) and re-run this check." >&2
+    exit 2
+  fi
+
+  echo "All checks passed."
+}
+
 FORCE=1
+CHECK_ONLY=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -y|--yes) FORCE=1; shift;;
+    --check) CHECK_ONLY=1; shift;;
     -h|--help) usage;;
     *) echo "Unknown argument: $1"; usage;;
   esac
 done
+
+if [ "$CHECK_ONLY" -eq 1 ]; then
+  run_checks
+  exit 0
+fi
 
 PKGS_COMMON="cmake git pkg-config ca-certificates curl"
 PKGS_BUILD=""
@@ -66,8 +149,6 @@ if ! command -v ninja >/dev/null 2>&1 && command -v ninja-build >/dev/null 2>&1;
 fi
 
 # Fetch Catch2 into external/Catch2
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 EXTERNAL_DIR="$REPO_ROOT/external"
 CATCH_DIR="$EXTERNAL_DIR/Catch2"
 if [ ! -d "$CATCH_DIR" ]; then
@@ -93,3 +174,6 @@ else
 fi
 
 echo "Setup complete. Example build: mkdir -p build && cd build && cmake -G Ninja .. && ninja -j$(nproc 2>/dev/null || echo 2)"
+
+# Run checks automatically after setup completes
+run_checks

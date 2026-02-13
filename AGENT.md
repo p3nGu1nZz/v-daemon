@@ -1,20 +1,23 @@
-# AGENT.md — v-daemon agent skills
+# AGENT.md — Agent guidance for v-daemon
 
-This file documents agent-facing skills that help maintainers and automation (Copilot agents) interact with the repository runtime. Prime directive: enable a recursive, autonomous development engine that self-reviews, prioritizes, and safely applies patches under the guidance of Copilot CLI—summarize, plan, implement, verify, and repeat.
+This document describes actionable skills and run commands for maintainers and automation agents.
 
-Skills
+## Quick run commands
 
-## run-project (moved)
+- Setup: `sh scripts/setup.sh --yes`
+- Run checks: `sh scripts/setup.sh --check`
+- Start supervisor/harness: `sh scripts/run.sh [--monitor]`
 
-See ./.github/skills/run-project/SKILL.md for details.
+## Primary skills
 
-Agent run commands (examples)
-- Setup environment: sh scripts/setup.sh --yes
-- Run checks: sh scripts/check.sh
-- Run supervisor/harness: sh scripts/run.sh [--monitor]
+- `summarize-repo` — produce a concise summary and structured JSON in `run/skills/summarize-repo/<timestamp>`.
+- `next-steps` — generate prioritized, PR-sized tasks and optionally insert them into the `todos` table.
+- `run-project` — start and manage the supervisor/daemon lifecycle.
 
-Agents performing runs should capture exit codes and collect logs (logs/) and runtime artifacts (run/) for reporting. Refer to README.md and ./doc/architecture.md for architecture and design context.
+## Logging and artifacts
 
-Notes
+Capture exit codes and store artifacts in `run/` and `logs/` for inspection and reporting.
 
-This AGENT.md is intended to be human- and agent-readable. Keep it updated as run scripts change so automated helpers can reliably reproduce developer workflows.
+## Notes
+
+Keep this file in sync with scripts and `.github/skills` so automated helpers can reproduce workflows reliably.

@@ -53,8 +53,8 @@ if [ -d "$REPO_ROOT/.git" ] && command -v git >/dev/null 2>&1; then
   git commit -m "$COMMIT_MSG" >/dev/null 2>&1 || true
 
   # Run checks
-  if [ -x "./scripts/check.sh" ] || command -v sh >/dev/null 2>&1; then
-    sh scripts/check.sh >"$OUT_DIR/patcher_check.out" 2>&1 || true
+  if [ -x "./scripts/setup.sh" ] || command -v sh >/dev/null 2>&1; then
+    sh scripts/setup.sh --check >"$OUT_DIR/patcher_check.out" 2>&1 || true
     CHECK_RC=$?
   else
     echo "No check script executable; skipping checks" >"$OUT_DIR/patcher_check.out"
