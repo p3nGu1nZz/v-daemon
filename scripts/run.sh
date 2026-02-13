@@ -160,6 +160,7 @@ cleanup_and_exit() {
   [ -n "${TAIL_S:-}" ] && kill "$TAIL_S" 2>/dev/null || true
   [ -n "${TAIL_DIR:-}" ] && kill "$TAIL_DIR" 2>/dev/null || true
   [ -n "${STATUS_PID:-}" ] && kill "$STATUS_PID" 2>/dev/null || true
+  [ -n "${INPUT_PID:-}" ] && kill "$INPUT_PID" 2>/dev/null || true
 
   # Try to stop supervisor/daemon processes and any orphans
   stop_all
@@ -308,6 +309,194 @@ stop_all() {
   fi
 }
 
+# Handle interactive commands entered in monitor mode
+handle_command() {
+  # Called by the input loop; safely interpret simple commands
+  cmdline="$1"
+  cmd="$(printf '%s' "$cmdline" | awk '{print $1}')"
+  arg="$(printf '%s' "$cmdline" | awk '{print $2}')"
+  printf '%s [INPUT] %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$cmdline" >&2
+  case "$cmd" in
+    help|\?)
+      echo "Commands: ?, help, kill <id|name|agent:name>, ping <id|name>, list, select <n>, focus <cmd|tree>" >&2
+      ;;
+    kill)
+      if [ -z "$arg" ]; then echo "Usage: kill <id|name|agent:name>" >&2; return 0; fi
+      if printf '%s' "$arg" | grep -qE '^[0-9]+$'; then
+        pid="$arg"
+        if kill -0 "$pid" 2>/dev/null; then
+          kill_pid_and_children "$pid"
+          echo "Killed pid $pid" >&2
+        else
+          echo "Pid $pid not running" >&2
+        fi
+      else
+        # If registered name
+        if [ -f "$RUN_DIR/$arg.pid" ]; then
+          if proc_stop_registered "$arg"; then
+            echo "Stopped registered $arg" >&2
+          else
+            echo "Failed to stop $arg" >&2
+          fi
+        else
+          # search by name (case-insensitive)
+          pids=$(ps -eo pid,args 2>/dev/null | awk -v n="$arg" 'tolower($0) ~ tolower(n) {print $1}')
+          if [ -z "$pids" ]; then
+            echo "No process found matching $arg" >&2
+          else
+            for pid in $pids; do
+              kill_pid_and_children "$pid" && echo "Killed $pid for $arg" >&2 || echo "Failed to kill $pid" >&2
+            done
+          fi
+        fi
+      fi
+      ;;
+    ping)
+      if [ -z "$arg" ]; then echo "Usage: ping <id|name|agent:name>" >&2; return 0; fi
+      if printf '%s' "$arg" | grep -qE '^[0-9]+$'; then
+        pid="$arg"
+        if kill -0 "$pid" 2>/dev/null; then
+          echo "pong pid $pid" >&2
+        else
+          echo "no response from pid $pid" >&2
+        fi
+      else
+        if [ -f "$RUN_DIR/$arg.pid" ]; then
+          pid=$(cat "$RUN_DIR/$arg.pid" 2>/dev/null || echo "")
+          if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            echo "pong $arg pid $pid" >&2
+          else
+            echo "$arg (pid:$pid) not responding" >&2
+          fi
+        else
+          pids=$(ps -eo pid,args 2>/dev/null | awk -v n="$arg" 'tolower($0) ~ tolower(n) {print $1}')
+          if [ -z "$pids" ]; then
+            echo "no process found matching $arg" >&2
+          else
+            for pid in $pids; do
+              echo "pong $pid" >&2
+            done
+          fi
+        fi
+      fi
+      ;;
+    list)
+      proc_list_registered | while read -r nm pid; do
+        [ -z "$nm" ] && continue
+        if [ -n "$pid" ] && proc_is_running "$pid"; then st='running'; else st='stopped'; fi
+        echo "$nm $pid $st" >&2
+      done
+      ;;
+    select)
+      if printf '%s' "$arg" | grep -qE '^[0-9]+$'; then
+        printf '%s' "$arg" > "$RUN_DIR/monitor_selected"
+      else
+        echo "select <n> (numeric)" >&2
+      fi
+      ;;
+    focus)
+      if [ "$arg" = "cmd" ] || [ "$arg" = "tree" ]; then
+        printf '%s' "$arg" > "$RUN_DIR/monitor_focus"
+      else
+        echo "focus cmd|tree" >&2
+      fi
+      ;;
+    *)
+      echo "Unknown command: $cmdline" >&2
+      ;;
+  esac
+}
+
+# Input loop: reads single characters and updates shared monitor files under RUN_DIR
+input_loop() {
+  # Run in a subshell safe loop
+  set +e
+  OLDSTTY="$(stty -g 2>/dev/null || true)"
+  # enable char-at-a-time, no echo
+  stty -echo -icanon time 0 min 0 2>/dev/null || true
+
+  focus_file="$RUN_DIR/monitor_focus"
+  sel_file="$RUN_DIR/monitor_selected"
+  buf_file="$RUN_DIR/monitor_input_buf"
+  tree_count_file="$RUN_DIR/monitor_tree_count"
+
+  printf 'cmd' > "$focus_file"
+  printf '1' > "$sel_file"
+  printf '' > "$buf_file"
+  printf '0' > "$tree_count_file"
+
+  ESC="$(printf '\033')"
+  UP="$ESC[A"
+  DOWN="$ESC[B"
+  TAB="$(printf '\t')"
+  DEL="$(printf '\177')"
+  NL="$(printf '\n')"
+
+  while :; do
+    # read one byte (non-blocking due to stty settings)
+    c="$(dd bs=1 count=1 2>/dev/null || true)"
+    if [ -z "$c" ]; then
+      sleep 0.05
+      continue
+    fi
+
+    if [ "$c" = "$ESC" ]; then
+      # attempt to read two more bytes for arrow sequences
+      c2="$(dd bs=1 count=1 2>/dev/null || true)"
+      c3="$(dd bs=1 count=1 2>/dev/null || true)"
+      seq="$c$c2$c3"
+      if [ "$seq" = "$UP" ]; then
+        focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
+        if [ "$focus" = "tree" ]; then
+          sel="$(cat "$sel_file" 2>/dev/null || echo 1)"
+          if [ "$sel" -gt 1 ]; then sel=$((sel-1)); fi
+          printf '%s' "$sel" > "$sel_file"
+        fi
+      elif [ "$seq" = "$DOWN" ]; then
+        focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
+        if [ "$focus" = "tree" ]; then
+          sel="$(cat "$sel_file" 2>/dev/null || echo 1)"
+          max="$(cat "$tree_count_file" 2>/dev/null || echo 0)"
+          if [ "$sel" -lt "$max" ]; then sel=$((sel+1)); fi
+          printf '%s' "$sel" > "$sel_file"
+        fi
+      fi
+      continue
+    fi
+
+    if [ "$c" = "$TAB" ]; then
+      focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
+      if [ "$focus" = "cmd" ]; then printf 'tree' > "$focus_file"; else printf 'cmd' > "$focus_file"; fi
+      continue
+    fi
+
+    if [ "$c" = "$NL" ]; then
+      # Enter: read buffer and handle command
+      cmdline="$(cat "$buf_file" 2>/dev/null || echo '')"
+      if [ -n "$cmdline" ]; then
+        handle_command "$cmdline"
+      fi
+      # clear buffer
+      printf '' > "$buf_file"
+      continue
+    fi
+
+    if [ "$c" = "$DEL" ]; then
+      buf="$(cat "$buf_file" 2>/dev/null || echo '')"
+      # remove last char
+      buf="${buf%?}"
+      printf '%s' "$buf" > "$buf_file"
+      continue
+    fi
+
+    # Append character to buffer
+    printf '%s' "$c" >> "$buf_file"
+  done
+
+  # restore terminal
+  stty "$OLDSTTY" 2>/dev/null || true
+}
+
 monitor_foreground() {
   printf 'Monitor: streaming daemon and supervisor logs (press Ctrl-C to exit)\n' >&2
   touch "$LOGFILE" "$SUP_LOGFILE" "$DIRECTOR_LOG"
@@ -321,11 +510,13 @@ monitor_foreground() {
     GREEN='\033[32m'
     YELLOW='\033[33m'
     RESET='\033[0m'
+    INV='\033[7m'
   else
     RED=''
     GREEN=''
     YELLOW=''
     RESET=''
+    INV=''
   fi
 
   # Print an initial system status line (before starting tails to avoid interleaving)
@@ -384,6 +575,10 @@ monitor_foreground() {
   TAIL_S=$!
   tail -n 0 -F "$DIRECTOR_LOG" 2>/dev/null &
   TAIL_DIR=$!
+
+  # Start interactive input loop for monitor (reads single-key input and manages focus)
+  input_loop &
+  INPUT_PID=$!
 
   # Background refresher to update an anchored status line with uptime/errors/swarm state
   monitor_start_ts=$(date +%s)
@@ -529,20 +724,30 @@ monitor_foreground() {
       fi
 
       tree_count=$(wc -l <"$tree_tmp" 2>/dev/null || echo 0)
+      # publish tree count for input loop to read
+      printf '%s' "$tree_count" > "$RUN_DIR/monitor_tree_count" 2>/dev/null || true
       if [ "$tree_count" -eq 0 ]; then
         # Only redraw anchored status when it changes to reduce flicker
         if [ "${status_line}" != "${LAST_STATUS_LINE}" ]; then
-          printf '\033[s\033[999B\033[2K\r%s\033[u' "$status_line" >&2
+          # when no tree, print status and leave
+          printf '\\033[s\\033[999B\\033[2K\\r%s\\033[u' "$status_line" >&2
           LAST_STATUS_LINE="$status_line"
         fi
       else
         # Only redraw when status or tree count changes
         if [ "${status_line}" != "${LAST_STATUS_LINE}" ] || [ "$tree_count" != "${LAST_TREE_COUNT:-}" ]; then
-          # move to bottom and up by tree_count lines to start writing
-          printf '\033[s\033[999B' >&2
-          if [ "$tree_count" -gt 0 ]; then
-            printf '\033[%dA' "$tree_count" >&2
+          # move to bottom and up by (tree_count+1) lines to leave room for an input prompt
+          printf '\\033[s\\033[999B' >&2
+          move_up=$((tree_count + 1))
+          if [ "$move_up" -gt 0 ]; then
+            printf '\\033[%dA' "$move_up" >&2
           fi
+
+          # read selection, focus, and buffer
+          SEL="$(cat "$RUN_DIR/monitor_selected" 2>/dev/null || echo 1)"
+          FOCUS="$(cat "$RUN_DIR/monitor_focus" 2>/dev/null || echo cmd)"
+          BUF="$(cat "$RUN_DIR/monitor_input_buf" 2>/dev/null || echo '')"
+
           n=0
           total=$(wc -l <"$tree_tmp" 2>/dev/null || echo 0)
           while IFS= read -r l; do
@@ -552,10 +757,29 @@ monitor_foreground() {
             else
               prefix='`- '
             fi
-            printf '\033[2K\r%s%s\n' "$prefix" "$l" >&2
+            if [ "$n" -eq "$SEL" ]; then
+              sel_prefix='> '
+              if [ "$FOCUS" = "tree" ]; then
+                # invert colors for focused selection
+                printf '\\033[2K\\r%s%s%s%s\\033[0m\n' "$prefix" "$sel_prefix" "$INV" "$l" >&2
+              else
+                printf '\\033[2K\\r%s%s%s\n' "$prefix" "$sel_prefix" "$l" >&2
+              fi
+            else
+              printf '\\033[2K\\r%s%s\n' "$prefix" "$l" >&2
+            fi
           done < "$tree_tmp"
+
+          # print input prompt line above the anchored status
+          if [ "$FOCUS" = "cmd" ]; then
+            prompt="(cmd) > $BUF"
+          else
+            prompt="(tree) > $BUF"
+          fi
+          printf '\\033[2K\\r%s\\n' "$prompt" >&2
+
           # print final status line (no newline) and restore cursor
-          printf '\033[2K\r%s\033[u' "$status_line" >&2
+          printf '\\033[2K\\r%s\\033[u' "$status_line" >&2
           LAST_STATUS_LINE="$status_line"
           LAST_TREE_COUNT="$tree_count"
         fi
@@ -598,6 +822,7 @@ monitor_foreground() {
 
   # Ensure status refresher is stopped when tails exit
   [ -n "${STATUS_PID:-}" ] && kill "$STATUS_PID" 2>/dev/null || true
+  [ -n "${INPUT_PID:-}" ] && kill "$INPUT_PID" 2>/dev/null || true
 
 }
 

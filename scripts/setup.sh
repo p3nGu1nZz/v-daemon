@@ -3,12 +3,11 @@
 set -eu
 
 usage() {
-  echo "Usage: $0 [--yes|-y|--check|--clean|--directive \"<string>\"]"
-  echo "Installs required packages (cmake, ninja, a C++ toolchain, git) for common Linux distros."
-  echo "Set CI=1 in the environment to run in CI mode (non-interactive); will skip or mock certain deps."
+  echo "Usage: $0 [--check|--clean|--directive \"<string>\"]"
+  echo "Non-interactive by default; setup will run without prompting."
   echo "Use --check to run repository checks only (no installs)."
   echo "Use --clean to remove generated artifacts (audits, logs, run)."
-  echo "Use --directive \"<string>\" to update config/settings.toml with the prime directive for agents and commit the change via scripts/skills/patch-repo.sh."
+  echo "Use --directive \"<string>\" to update config/settings.toml with the prime directive for agents and commit via scripts/skills/patch-repo.sh."
   exit 1
 }
 
@@ -132,7 +131,7 @@ update_directive_in_config() {
   echo "Updated $cfg with directive: $val"
 }
 
-FORCE=0
+FORCE=1
 CHECK_ONLY=0
 CLEAN=0
 CI_MODE=0
@@ -140,7 +139,6 @@ DIRECTIVE_ARG=""
 DIRECTIVE_PROVIDED=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    -y|--yes) FORCE=1; shift;;
     --check) CHECK_ONLY=1; shift;;
     --clean) CLEAN=1; shift;;
     --directive)
@@ -178,6 +176,17 @@ if [ "${CI_MODE:-0}" -eq 1 ]; then
   FORCE=1
 fi
 
+# Non-interactive install: require root or sudo; prefer sudo -n to avoid password prompts
+if [ "$(id -u)" -ne 0 ] && ! command -v sudo >/dev/null 2>&1; then
+  echo "Non-interactive install requires root or sudo; please run as root or install sudo." >&2
+  exit 1
+fi
+if [ "$(id -u)" -ne 0 ]; then
+  SUDO="sudo -n"
+else
+  SUDO=""
+fi
+
 # If directive arg provided, update the settings file and commit via patch-repo
 if [ "${DIRECTIVE_PROVIDED:-0}" -eq 1 ]; then
   cfg="$REPO_ROOT/config/settings.toml"
@@ -208,46 +217,39 @@ PKGS_BUILD=""
 if command -v apt-get >/dev/null 2>&1; then
   PM="apt"
   PKGS="$PKGS_COMMON ninja-build build-essential sqlite3"
-  INSTALL_CMD="sudo apt-get update && sudo apt-get install -y $PKGS"
+  INSTALL_CMD="$SUDO apt-get update && $SUDO apt-get install -y $PKGS"
 elif command -v dnf >/dev/null 2>&1; then
   PM="dnf"
   PKGS="$PKGS_COMMON ninja-build gcc-c++ make sqlite"
-  INSTALL_CMD="sudo dnf install -y $PKGS"
+  INSTALL_CMD="$SUDO dnf install -y $PKGS"
 elif command -v yum >/dev/null 2>&1; then
   PM="yum"
   PKGS="$PKGS_COMMON ninja-build gcc-c++ make sqlite"
-  INSTALL_CMD="sudo yum install -y $PKGS"
+  INSTALL_CMD="$SUDO yum install -y $PKGS"
 elif command -v pacman >/dev/null 2>&1; then
   PM="pacman"
   PKGS="$PKGS_COMMON base-devel ninja sqlite"
-  INSTALL_CMD="sudo pacman -Sy --noconfirm $PKGS"
+  INSTALL_CMD="$SUDO pacman -Sy --noconfirm $PKGS"
 elif command -v apk >/dev/null 2>&1; then
   PM="apk"
   PKGS="$PKGS_COMMON build-base ninja sqlite"
-  INSTALL_CMD="sudo apk add --no-cache $PKGS"
+  INSTALL_CMD="$SUDO apk add --no-cache $PKGS"
 else
   echo "Unsupported package manager. Please manually install: cmake, ninja, a C++ compiler (g++/clang), make, git." >&2
   exit 1
 fi
 
+echo "=== Setup Summary ==="
 echo "Detected package manager: $PM"
 echo "Packages to install: $PKGS"
-
-if [ "$FORCE" -eq 1 ]; then
-  sh -c "$INSTALL_CMD"
-else
-  printf "About to run: %s\nProceed? [y/N] " "$INSTALL_CMD"
-  read ans || ans="n"
-  case "$ans" in
-    y|Y) sh -c "$INSTALL_CMD";;
-    *) echo "Aborted."; exit 1;;
-  esac
-fi
+echo
+echo "Running install command (non-interactive)..."
+sh -c "$INSTALL_CMD"
 
 # Ensure 'ninja' binary exists
 if ! command -v ninja >/dev/null 2>&1 && command -v ninja-build >/dev/null 2>&1; then
   echo "Linking ninja-build -> /usr/local/bin/ninja"
-  sudo ln -sf "$(command -v ninja-build)" /usr/local/bin/ninja || true
+  $SUDO ln -sf "$(command -v ninja-build)" /usr/local/bin/ninja || true
 fi
 
 # Fetch Catch2 into external/Catch2 (optional in CI)
