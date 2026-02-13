@@ -1,0 +1,12 @@
+- Add scripts/lib/process.sh process controller functions: Provide start/stop/status helpers and PIDfile management used by run.sh and daemon.
+- Create config/example.yaml with daemon defaults: Include PID paths, log locations, check interval, and director settings.
+- Implement daemon CLI (start/stop/status) and shutdown: Add start/stop/status commands and ensure clean shutdown behavior that stops child processes.
+- Make daemon spawn and supervise director process: Ensure daemon writes PID/log files and reliably spawns, restarts, and stops the director as needed.
+- Emit structured director heartbeats into dev/audits: Write timestamped JSON or key-value heartbeat entries to dev/audits/director.log for auditing.
+- Implement lightweight worker agent stub script: Worker should register with the director, write PID, and send periodic heartbeats and job status.
+- Define simple director RPC (HTTP or UDS) API: Document JSON endpoints for worker registration, heartbeat, and job assignment for director-worker communication.
+- Add spawn/stop logic and worker registry to director: Maintain an active worker list and implement programmatic spawn/stop controls used by the daemon.
+- Create end-to-end integration harness script: Automate starting supervisor → daemon → director → N workers and validate audit logs for end-to-end verification.
+- Document build/test steps and sample CMakeLists: Add a minimal top-level CMakeLists.txt and README notes to build with CMake/Ninja and run Catch2 tests.
+- Make Copilot CLI optional in setup.sh: Add a flag to skip Copilot installation and avoid unsolicited installs during setup.
+- Add basic observability logs and metrics stub: Expose configurable log levels and a simple metrics output (heartbeat counts) to aid debugging and future Prometheus integration.

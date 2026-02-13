@@ -1,0 +1,50 @@
+Repository summary (fallback)
+Generated: 2026-02-13T05:21:35-0500
+
+README (top):
+# v-daemon
+
+v-daemon is a small supervisor/daemon and development harness for exercising a Director/Worker autonomous loop ("DirectorDev"). The repo provides POSIX shell helper scripts to set up dependencies, run repository checks, and exercise a simple supervisor + agent workflow. Native C/C++ components and CMake support are optional and supported when present.
+
+Status: early development — see TODO.md for planned milestones and tasks.
+
+Requirements
+
+- POSIX shell (sh)
+- cmake (optional, for C/C++ builds)
+- ninja (optional, for C/C++ builds)
+- A C/C++ toolchain (g++ or clang) if building native code
+
+Top TODOs:
+- [ ] Ensure build scripts, example configs, and README updates
+- [ ] Add config/example.yaml (sample configuration)
+- [ ] Provide local run script (scripts/run.sh) and examples
+- [ ] Add scripts/lib/process.sh to register/start/stop managed processes and track run/*.pid files
+- [ ] Add cmd/daemon skeleton (config, logging, lifecycle, PID file)
+- [ ] Implement process supervisor to spawn the director agent as a child process
+- [ ] Add CLI flags: start/stop/status and a clean shutdown path
+- [ ] Implement a simple director (shell or lightweight binary) usable by the daemon (e.g., dev/harness/director.sh)
+- [ ] Define director API/RPC (JSON-over-UDS or HTTP) used by daemon and workers
+- [ ] Implement spawn/stop logic and a registry of active workers
+
+Top scripts:
+build.sh
+check.sh
+lib
+run.sh
+setup.sh
+
+Top-level files:
+LICENSE
+README.md
+TODO.md
+dev
+external
+logs
+run
+scripts
+
+File counts by dir:
+v-daemon: 1005 files
+scripts: 10 files
+logs: 17 files

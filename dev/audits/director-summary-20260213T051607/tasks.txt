@@ -1,0 +1,12 @@
+- Add scripts/lib/process.sh to register and manage processes
+- Create config/example.yaml with default daemon settings
+- Implement supervisor script scripts/lib/supervise.sh to manage services
+- Formalize daemon in cmd/daemon with proper lifecycle
+- Implement director spawn/stop and worker registry
+- Add worker agent stub that registers and heartbeats
+- Add CMakeLists and Catch2 test targets for CI
+- Write end-to-end integration tests for supervisor→daemon→director→workers
+- Harden scripts/setup.sh and scripts/check.sh for reliability
+- Document quickstart and developer workflow in README.md
+- Add autopilot summary integration with Copilot CLI fallback
+- Plan GitHub MCP Server integration and local dev instance

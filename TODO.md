@@ -107,6 +107,52 @@ Phase: Observability & ops
 
 ---
 
+## Milestone 0 — Scripts & Tooling Improvements
+
+Phase: Standardization & safety
+
+- [ ] Standardize shebangs: use /usr/bin/env bash for scripts requiring bash features; reserve POSIX sh only for strictly portable scripts.
+- [ ] Add strict mode headers (set -euo pipefail) to bash scripts; use set -eu for POSIX sh scripts where pipefail is unavailable.
+- [ ] Run shellcheck on all scripts and add shellcheck to CI; fix reported issues and add a minimal .shellcheckrc if needed.
+
+Phase: PIDfiles, locks & runtime artifacts
+
+- [ ] Centralize runtime artifacts (pidfiles, locks, sockets) under run/ or $XDG_RUNTIME_DIR instead of /tmp and update scripts accordingly.
+- [ ] Replace mkdir-based lockdir patterns with flock or a portable lock helper (scripts/lib/lock.sh) and update callers to use it.
+- [ ] Ensure atomic pidfile creation, ownership checks, and robust handling of stale pidfiles.
+
+Phase: Process discovery & management
+
+- [ ] Replace fragile ps+awk parsing with pgrep -f or /proc-based checks with portable fallbacks where necessary.
+- [ ] Remove eval/set -- $REMAINING patterns; parse CLI arguments robustly and use bash arrays in scripts that require them.
+- [ ] Consolidate duplicate process-management logic into scripts/lib/process.sh and remove redundant code paths.
+
+Phase: Temp files & external calls
+
+- [ ] Use mktemp for all temporary files and ensure cleanup with traps; remove ad-hoc mktemp fallbacks.
+- [ ] Harden external calls (curl, git clone, copilot) with explicit timeouts, retries, and error handling; avoid piping remote scripts directly to shell.
+- [ ] Sanitize and limit external tool outputs (copilot), and store raw + sanitized copies under dev/audits with truncation/redaction rules.
+
+Phase: Logging & sanitization
+
+- [ ] Add a logging helper (scripts/lib/log.sh) to provide consistent timestamps, log levels, and optional console verbosity.
+- [ ] Improve rotate_logs.sh to compress rotations (gzip), enforce retention, and be safe under concurrent runs.
+- [ ] Standardize log file locations and rotation naming; add optional max-size rotation behavior.
+
+Phase: Tests, CI & automation
+
+- [ ] Add shellcheck to CI (GitHub Actions) and require passing checks for PRs touching scripts.
+- [ ] Add integration tests (bats or shunit2) that validate start/stop/status flows for supervisor/daemon and basic pidfile/lock behavior.
+- [ ] Add a containerized smoke-test job that runs scripts/setup.sh and scripts/check.sh to validate environments.
+
+Phase: Misc improvements
+
+- [ ] Normalize usage/help text and add -h/--help to all scripts with consistent formatting.
+- [ ] Ensure scripts have executable bit set and provide an 'install-scripts' helper to optionally install them into a development PATH.
+- [ ] Add git revision/version reporting to heartbeat logs for easier debugging and traceability.
+
+---
+
 ## How to use this TODO
 
 - Treat each checked item as an independent, testable task and prefer small PRs per task

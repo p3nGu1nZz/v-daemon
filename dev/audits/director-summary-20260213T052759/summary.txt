@@ -1,0 +1,20 @@
+
+v-daemon — a small POSIX-shell supervisor/daemon and development harness to exercise a Director/Worker autonomous loop (DirectorDev).
+
+Core layout: scripts/ (setup.sh, check.sh, run.sh, lib/*), dev/ (harness & audits), external/ (third-party deps like Catch2), logs/, run/.
+
+Key files: README.md, TODO.md (roadmap), scripts/setup.sh (install deps & fetch Catch2), scripts/check.sh (env checks), scripts/run.sh (supervisor), scripts/lib/daemon.sh and scripts/lib/director.sh (agent stubs).
+
+
+Tests: no test runner detected; Catch2 is fetched into external/Catch2 by setup.sh; once CMake test targets are added, run cd build && ctest or ninja test.
+
+Outstanding TODOs (summary): Milestone 1 — add config/example.yaml, scripts/lib/process.sh, daemon skeleton and start/stop/status CLI; Milestone 2 — implement director API/RPC, worker agents, and end-to-end orchestration.
+
+Outstanding TODOs (continued): Milestone 3 — scheduling, resilience and autoscaling; Milestone 4 — provision local GitHub MCP Server and implement MCP client/event mappings; Milestone 5 — CI, observability (metrics/tracing), and secrets/security improvements.
+
+Acceptance criteria: daemon starts and writes logs, director spawns and coordinates workers end-to-end, and MCP integration can create PRs/issues and react to events.
+
+Creating scripts/quick_summary.sh and running it to generate a dev/audits summary using the repository files.
+
+Created an on-the-fly repository summary in the previous message; attempted to write a quick_summary script and run it, but filesystem write permissions prevented creating files or running the inline script. Task complete.
+
