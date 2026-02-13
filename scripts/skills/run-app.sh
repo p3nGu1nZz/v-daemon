@@ -7,7 +7,7 @@ cmd="$1"
 if [ -z "$cmd" ]; then cmd="status"; fi
 
 timestamp=$(date -u +"%Y%m%dT%H%M%SZ")
-out="run/skills/run-project/$timestamp"
+out="run/skills/run-app/$timestamp"
 mkdir -p "$out/raw"
 
 if command -v sh >/dev/null 2>&1; then

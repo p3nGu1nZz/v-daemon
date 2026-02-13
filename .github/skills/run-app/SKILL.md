@@ -1,9 +1,9 @@
 ---
-name: run-project
+name: run-app
 description: "Manage v-daemon lifecycle: start, stop, status, and monitor supervisor, director, and daemon with log streaming and PID management."
 ---
 
-# run-project
+# run-app
 
 ## Purpose
 
