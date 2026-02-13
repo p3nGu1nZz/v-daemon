@@ -18,7 +18,7 @@ done
 
 if [ -z "$SUMMARY_PATH" ]; then
   # find latest summary.json
-  SUMMARY_PATH=$(ls -1dt run/skills/review-repo/*/summary.json 2>/dev/null | head -n1 || true)
+  SUMMARY_PATH=$(printf "%s\n" run/skills/review-repo/*/summary.json 2>/dev/null | head -n1 || true)
 fi
 
 timestamp=$(date -u +"%Y%m%dT%H%M%SZ")

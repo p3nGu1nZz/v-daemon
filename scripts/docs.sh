@@ -203,10 +203,26 @@ build_todos() {
 write_report() {
   report_json="$OUT/report.json"
   mkdir -p "$(dirname "$report_json")"
-  num_docs=$(wc -l <"$RAW/markdown_files.txt" 2>/dev/null || echo 0)
-  num_scripts=$(wc -l <"$RAW/script_files.txt" 2>/dev/null || echo 0)
-  num_src=$(wc -l <"$RAW/src_files.txt" 2>/dev/null || echo 0)
-  num_todos=$(wc -l <"$RAW/todos.txt" 2>/dev/null || echo 0)
+  if [ -f "$RAW/markdown_files.txt" ]; then
+    num_docs=$(wc -l <"$RAW/markdown_files.txt" 2>/dev/null || echo 0)
+  else
+    num_docs=0
+  fi
+  if [ -f "$RAW/script_files.txt" ]; then
+    num_scripts=$(wc -l <"$RAW/script_files.txt" 2>/dev/null || echo 0)
+  else
+    num_scripts=0
+  fi
+  if [ -f "$RAW/src_files.txt" ]; then
+    num_src=$(wc -l <"$RAW/src_files.txt" 2>/dev/null || echo 0)
+  else
+    num_src=0
+  fi
+  if [ -f "$RAW/todos.txt" ]; then
+    num_todos=$(wc -l <"$RAW/todos.txt" 2>/dev/null || echo 0)
+  else
+    num_todos=0
+  fi
   cat >"$report_json" <<JSON
 {
   "skill":"${SKILL_META[name]}",
@@ -228,6 +244,7 @@ TXT
 }
 
 main() {
+  mkdir -p "$OUT" "$RAW"
   capture_git_metadata
   collect_docs
   collect_scripts

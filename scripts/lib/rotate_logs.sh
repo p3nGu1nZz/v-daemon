@@ -67,7 +67,7 @@ for logfile in "$LOG_DIR"/daemon.log "$LOG_DIR"/supervisor.log; do
   count=0
   # Use ls -1t when available; set IFS to newline so filenames with spaces are preserved
   OLDIFS=$IFS
-  IFS='\n'
+  IFS=$(printf "\n")
   for f in $(ls -1t "${logfile}".* 2>/dev/null || true); do
     [ -f "$f" ] || continue
     count=$((count+1))
