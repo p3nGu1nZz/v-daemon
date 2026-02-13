@@ -2,6 +2,16 @@
 # Minimal daemon loop. Replace loop body with self-improving logic later.
 set -eu
 
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+  cat <<'USAGE'
+Usage: sh scripts/lib/daemon.sh
+
+Minimal daemon loop that writes heartbeat to ./logs/daemon.log and PID to /tmp/v-daemon.pid.
+Intended to be managed by scripts/run.sh supervisor.
+USAGE
+  exit 0
+fi
+
 PIDFILE="/tmp/v-daemon.pid"
 trap 'rm -f "$PIDFILE"; exit 0' INT TERM EXIT
 echo $$ >"$PIDFILE"

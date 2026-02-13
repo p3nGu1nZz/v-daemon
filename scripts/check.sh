@@ -5,6 +5,16 @@ set -eu
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+  cat <<'USAGE'
+Usage: sh scripts/check.sh
+
+Checks required commands and basic environment (cmake, ninja, g++, make, git, docker).
+Also verifies Catch2 is present in external/Catch2 (single_include or src layout).
+USAGE
+  exit 0
+fi
+
 echo "Checking required commands..."
 missing=0
 check_cmd() {
