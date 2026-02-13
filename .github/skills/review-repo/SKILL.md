@@ -19,6 +19,7 @@ Perform a repository-wide code and documentation review that focuses on alignmen
 - allow_run (bool, default: false) — when true, safe runtime checks and linters may be invoked.
 - include_globs (array) — optional list of glob patterns to limit review scope.
 - output_format (string): `text` or `json`.
+- safety_controls (optional) — configuration keys such as `director.allow_execute` and corresponding env `V_DAEMON_ALLOW_EXECUTE` can be used to prevent runtime actions (default: disabled).
 
 ## Outputs
 

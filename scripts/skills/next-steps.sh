@@ -17,8 +17,11 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$SUMMARY_PATH" ]; then
-  # find latest summary.json
+  # prefer summary.json, but fall back to review.json for compatibility
   SUMMARY_PATH=$(printf "%s\n" run/skills/review-repo/*/summary.json 2>/dev/null | head -n1 || true)
+  if [ -z "$SUMMARY_PATH" ]; then
+    SUMMARY_PATH=$(printf "%s\n" run/skills/review-repo/*/review.json 2>/dev/null | head -n1 || true)
+  fi
 fi
 
 timestamp=$(date -u +"%Y%m%dT%H%M%SZ")
