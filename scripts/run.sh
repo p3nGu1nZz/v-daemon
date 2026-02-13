@@ -59,7 +59,8 @@ Commands:
   status          Print supervisor and daemon status.
 
 Options:
-  --monitor, -m   After running the command, stream daemon and supervisor logs and print status lines (runs in foreground).
+  --monitor, -m   After running the command, enter monitor foreground mode (runs in foreground).
+  --logs          When used with --monitor, also stream daemon and supervisor logs into the monitor.
   --yolo          Force YOLO mode for supervisor, daemon, and any spawned workers (exports YOLO=true).
 
 Environment:
@@ -128,6 +129,9 @@ while [ $# -gt 0 ]; do
     --monitor|-m)
       shift;;
     --yolo)
+      shift;;
+    --logs)
+      STREAM_LOGS=1
       shift;;
     -h|--help)
       usage;;
