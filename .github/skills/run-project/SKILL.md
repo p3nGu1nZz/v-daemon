@@ -2,7 +2,7 @@
 
 Purpose
 
-Start, monitor, and stop the v-daemon supervisor and daemon. Use this skill when you need to run the project locally, stream logs, or shut it down cleanly.
+Start, monitor, and stop the v-daemon supervisor and daemon. Use this skill when you need to run the project locally, stream logs, or shut it down cleanly. This skill is the runtime entrypoint for the project's prime directive: launching the Director loop that continuously audits the repo, proposes prioritized tasks, and—if authorized—applies small, sandboxed patches and verifies them.
 
 Usage examples
 

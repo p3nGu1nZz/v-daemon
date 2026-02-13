@@ -109,10 +109,32 @@ config_init() {
     if [ -n "$hb_val" ]; then
       HEARTBEAT_INTERVAL="$hb_val"
     fi
+
+    # Director-specific runtime settings
+    director_allow_val="$(_toml_get director allow_execute "$CONFIG_FILE")"
+    if [ -n "$director_allow_val" ]; then
+      DIRECTOR_ALLOW_EXECUTE="$director_allow_val"
+    else
+      DIRECTOR_ALLOW_EXECUTE="${DIRECTOR_ALLOW_EXECUTE:-0}"
+    fi
+
+    director_prefix_val="$(_toml_get director sandbox_branch_prefix "$CONFIG_FILE")"
+    if [ -n "$director_prefix_val" ]; then
+      DIRECTOR_SANDBOX_BRANCH_PREFIX="$director_prefix_val"
+    else
+      DIRECTOR_SANDBOX_BRANCH_PREFIX="${DIRECTOR_SANDBOX_BRANCH_PREFIX:-director/sandbox-}"
+    fi
+
+    director_interval_val="$(_toml_get director interval_seconds "$CONFIG_FILE")"
+    if [ -n "$director_interval_val" ]; then
+      DIRECTOR_INTERVAL_SECONDS="$director_interval_val"
+    else
+      DIRECTOR_INTERVAL_SECONDS="${DIRECTOR_INTERVAL_SECONDS:-60}"
+    fi
   fi
 
   # Ensure directories exist
   mkdir -p "$RUN_DIR" "$LOG_DIR"
 
-  export REPO_ROOT RUN_DIR LOG_DIR DAEMON_PIDFILE SUP_PIDFILE DIRECTOR_PIDFILE DAEMON_LOG SUP_LOGFILE DIRECTOR_LOG HEARTBEAT_INTERVAL
+  export REPO_ROOT RUN_DIR LOG_DIR DAEMON_PIDFILE SUP_PIDFILE DIRECTOR_PIDFILE DAEMON_LOG SUP_LOGFILE DIRECTOR_LOG HEARTBEAT_INTERVAL DIRECTOR_ALLOW_EXECUTE DIRECTOR_SANDBOX_BRANCH_PREFIX DIRECTOR_INTERVAL_SECONDS
 }

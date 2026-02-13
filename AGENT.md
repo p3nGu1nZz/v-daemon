@@ -1,6 +1,6 @@
 # AGENT.md — v-daemon agent skills
 
-This file documents agent-facing skills that help maintainers and automation (Copilot agents) interact with the repository runtime.
+This file documents agent-facing skills that help maintainers and automation (Copilot agents) interact with the repository runtime. Prime directive: enable a recursive, autonomous development engine that self-reviews, prioritizes, and safely applies patches under the guidance of Copilot CLI—summarize, plan, implement, verify, and repeat.
 
 Skills
 

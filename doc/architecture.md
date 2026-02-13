@@ -1,7 +1,7 @@
 # Architecture & Vision
 
 Overview
-v-daemon is a lightweight supervisor/daemon and development harness to exercise a Director/Worker autonomous loop (DirectorDev). It favors small, reproducible shell-first workflows while offering optional native components (C/C++) built with CMake.
+v-daemon is a lightweight supervisor/daemon and development harness to exercise a Director/Worker autonomous loop (DirectorDev). It favors small, reproducible shell-first workflows while offering optional native components (C/C++) built with CMake. Prime directive: evolve the repository into a recursive, autonomous development engine that self-reviews, self-prioritizes, and self-patches under the guidance of Copilot CLI; 'sh scripts/run.sh start' is the canonical entrypoint for the Director loop.
 
 Core components
 - Supervisor (v-daemon): process manager that starts, monitors, and restarts child processes; manages PID files in run/ and writes logs to logs/.

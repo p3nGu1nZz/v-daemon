@@ -2,7 +2,7 @@
 
 v-daemon is a small supervisor/daemon and development harness for exercising a Director/Worker autonomous loop ("DirectorDev"). The repo provides POSIX shell helper scripts to set up dependencies, run repository checks, and exercise a simple supervisor + agent workflow. Native C/C++ components and CMake support are optional and supported when present.
 
-Status: early development — see TODO.md for planned milestones and tasks.
+Status: early development — prime directive: build a recursive, fully autonomous development engine powered by Copilot CLI that continuously reviews, prioritizes, implements, and self-improves. See TODO.md for fast-track milestones and tasks aimed at achieving an initial working loop where 'sh scripts/run.sh start' launches the Director loop for extended autonomous operation.
 
 Design & architecture
 - See ./doc/architecture.md for an architecture overview and project vision.

@@ -91,11 +91,15 @@ mkdir -p "$DEV_AUDITS_DIR"
 LOGFILE="${REPO_ROOT}/logs/director.log"
 
 echo "$(date +'%Y-%m-%dT%H:%M:%S%z') [AGENT-DIRECTOR] director agent starting (PID $$)" >>"$LOGFILE"
-# Source director actions (if present) and run autopilot summary asynchronously
-if [ -f "$SCRIPT_DIR/director_actions.sh" ]; then
+# Source director actions (prefer fixed copy if present) and run autopilot summary asynchronously
+if [ -f "$SCRIPT_DIR/director_actions_fixed.sh" ]; then
+  . "$SCRIPT_DIR/director_actions_fixed.sh"
+elif [ -f "$SCRIPT_DIR/director_actions.sh" ]; then
   . "$SCRIPT_DIR/director_actions.sh"
-  # run in background (non-blocking) so director heartbeat continues
-  run_autopilot_summary &
+fi
+# Start a first autopilot summary in background if action scripts were sourced
+if [ -f "$SCRIPT_DIR/director_actions_fixed.sh" ] || [ -f "$SCRIPT_DIR/director_actions.sh" ]; then
+  run_autopilot_summary 2>/dev/null &
 fi
 
 # Main loop: emit heartbeat and placeholder for coordination logic
@@ -104,6 +108,11 @@ while true; do
   echo "$heartbeat_ts [AGENT-DIRECTOR] heartbeat" >>"$LOGFILE"
   # Emit structured JSONL heartbeat for auditing
   printf '%s\n' "{\"ts\":\"$heartbeat_ts\",\"event\":\"heartbeat\",\"role\":\"director\",\"pid\":$$}" >>"$DEV_AUDITS_DIR/director-heartbeats.jsonl" || true
+  # Attempt autopilot summary in background; director_actions.sh will acquire its own lock
+  if [ -f "$SCRIPT_DIR/director_actions.sh" ]; then
+    ( run_autopilot_summary ) >/dev/null 2>&1 &
+  fi
+
   # TODO: implement director coordination (spawn workers, RPC, task queue)
-  sleep 60
+  sleep "${DIRECTOR_INTERVAL_SECONDS:-60}"
 done

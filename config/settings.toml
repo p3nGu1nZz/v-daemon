@@ -17,3 +17,11 @@ director = "logs/director.log"
 [runtime]
 # Heartbeat interval for the daemon in seconds
 heartbeat_interval_seconds = 30
+
+[director]
+# Whether the director may attempt safe, sandboxed execution of small patches (default false)
+allow_execute = false
+# Branch prefix to use for sandbox branches created by the patcher
+sandbox_branch_prefix = "director/sandbox-"
+# Run interval for the director's autopilot cycles (seconds)
+interval_seconds = 60

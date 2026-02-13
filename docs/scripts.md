@@ -1,6 +1,6 @@
 Scripts
 
-All scripts in scripts/ are implemented in POSIX sh and must use the shebang: /usr/bin/env sh. Ensure scripts are executable (chmod +x).
+All scripts in scripts/ are implemented in POSIX sh and must use the shebang: /usr/bin/env sh. Ensure scripts are executable (chmod +x). The scripts directory includes the canonical runtime entrypoint 'scripts/run.sh' which is used to start the supervisor and the Director loop; as the project evolves, scripts may invoke sandboxed helpers or small, well-scoped helper programs to support the autonomous loop.
 
 Common usage:
 - sh scripts/setup.sh --yes  # fetch deps and create required directories (run/, logs/)

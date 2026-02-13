@@ -5,7 +5,7 @@ Summary
 This skill instructs the Director agent how to produce a concise, structured summary of the repository's current state suitable for human review and automated decision-making. The output is both a short human-readable summary (summary.txt) and a structured JSON (summary.json) that captures metadata, key files, scripts, build/runtime instructions, tests, and recommended next steps.
 
 When to run
-- During agent startup to get situational awareness
+- During agent startup to get situational awareness and at the start of each Director cycle during long-running autonomous operation
 - Before creating high-level plans or actions (PR review, release prep)
 - On-demand as a repository audit or periodic health-check
 

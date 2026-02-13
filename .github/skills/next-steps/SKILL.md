@@ -11,6 +11,7 @@ When to run
 Inputs
 - summary_path (required): path to summary.json produced by summarize-repo skill.
 - allow_insert_todos (bool, default: false): if true, the skill may insert generated tasks into the todos table via the SQL tool.
+- allow_execute (bool, default: false): if true, the skill may attempt to implement small patches (create branch, apply changes, run checks, and push) in a sandboxed workflow; use with care and explicit operator consent.
 - max_tasks (int, default: 6): maximum number of tasks to generate.
 
 Outputs (artifact locations)
