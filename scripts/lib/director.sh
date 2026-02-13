@@ -81,6 +81,8 @@ echo $$ >"$PIDFILE"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 mkdir -p "$REPO_ROOT/logs"
+DEV_AUDITS_DIR="$REPO_ROOT/dev/audits"
+mkdir -p "$DEV_AUDITS_DIR"
 LOGFILE="${REPO_ROOT}/logs/director.log"
 
 echo "$(date +'%Y-%m-%dT%H:%M:%S%z') [AGENT-DIRECTOR] director agent starting (PID $$)" >>"$LOGFILE"
@@ -93,7 +95,10 @@ fi
 
 # Main loop: emit heartbeat and placeholder for coordination logic
 while true; do
-  echo "$(date +'%Y-%m-%dT%H:%M:%S%z') [AGENT-DIRECTOR] heartbeat" >>"$LOGFILE"
+  heartbeat_ts=$(date +'%Y-%m-%dT%H:%M:%S%z')
+  echo "$heartbeat_ts [AGENT-DIRECTOR] heartbeat" >>"$LOGFILE"
+  # Emit structured JSONL heartbeat for auditing
+  printf '%s\n' "{\"ts\":\"$heartbeat_ts\",\"event\":\"heartbeat\",\"role\":\"director\",\"pid\":$$}" >>"$DEV_AUDITS_DIR/director-heartbeats.jsonl" || true
   # TODO: implement director coordination (spawn workers, RPC, task queue)
   sleep 60
 done

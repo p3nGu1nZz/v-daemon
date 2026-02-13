@@ -159,7 +159,22 @@ EOF
       printf '%s [AGENT-DIRECTOR] Autopilot summary: attempting copilot (attempt %d/%d); stderr will be saved to %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" "$MAX_ATTEMPTS" "$out_dir/copilot.err" || true
 
       # Read prompt content and pass via -p (non-interactive); use -s to output only agent response
-      PROMPT_TEXT=$(cat "$active_prompt" 2>/dev/null || true)
+      MAX_PROMPT_BYTES=81920
+      PROMPT_TEXT=""
+      if [ -f "$active_prompt" ]; then
+        prompt_size=$(wc -c < "$active_prompt" 2>/dev/null || echo 0)
+      else
+        prompt_size=0
+      fi
+      if [ "$prompt_size" -gt "$MAX_PROMPT_BYTES" ]; then
+        trimmed_prompt="$out_dir/combined_prompt_trimmed.txt"
+        head -c "$MAX_PROMPT_BYTES" "$active_prompt" > "$trimmed_prompt" 2>/dev/null || cp "$active_prompt" "$trimmed_prompt" 2>/dev/null || true
+        printf '\n\n[TRUNCATED: original prompt %d bytes > %d bytes]\n' "$prompt_size" "$MAX_PROMPT_BYTES" >> "$trimmed_prompt" || true
+        PROMPT_TEXT=$(cat "$trimmed_prompt" 2>/dev/null || true)
+        printf '%s [AGENT-DIRECTOR] Autopilot summary: trimmed prompt from %d to %d bytes for copilot invocation\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$prompt_size" "$MAX_PROMPT_BYTES" >>"$LOGFILE" 2>/dev/null || true
+      else
+        PROMPT_TEXT=$(cat "$active_prompt" 2>/dev/null || true)
+      fi
       if $COPILOT_ENV copilot -s -p "$PROMPT_TEXT" $COPILOT_OPTS >"$summary_file" 2>"$out_dir/copilot.err"; then
         copilot_status=0
       else
@@ -315,7 +330,22 @@ PLANPROMPT
     plan_usable=0
     while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
       printf '%s [AGENT-DIRECTOR] Autopilot plan: copilot attempt %d/%d\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" "$MAX_ATTEMPTS" >>"$LOGFILE" 2>/dev/null || true
-      PLAN_TEXT=$(cat "$plan_in" 2>/dev/null || true)
+      MAX_PROMPT_BYTES=81920
+      PLAN_TEXT=""
+      if [ -f "$plan_in" ]; then
+        plan_size=$(wc -c < "$plan_in" 2>/dev/null || echo 0)
+      else
+        plan_size=0
+      fi
+      if [ "$plan_size" -gt "$MAX_PROMPT_BYTES" ]; then
+        plan_trim="$out_dir/plan_input_trimmed.txt"
+        head -c "$MAX_PROMPT_BYTES" "$plan_in" > "$plan_trim" 2>/dev/null || cp "$plan_in" "$plan_trim" 2>/dev/null || true
+        printf '\n\n[TRUNCATED: original plan input %d bytes > %d bytes]\n' "$plan_size" "$MAX_PROMPT_BYTES" >> "$plan_trim" || true
+        PLAN_TEXT=$(cat "$plan_trim" 2>/dev/null || true)
+        printf '%s [AGENT-DIRECTOR] Autopilot plan: trimmed plan input from %d to %d bytes for copilot invocation\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$plan_size" "$MAX_PROMPT_BYTES" >>"$LOGFILE" 2>/dev/null || true
+      else
+        PLAN_TEXT=$(cat "$plan_in" 2>/dev/null || true)
+      fi
       if $COPILOT_ENV copilot -s -p "$PLAN_TEXT" $COPILOT_OPTS >"$plan_raw" 2>"$plan_err"; then
         :
       fi
