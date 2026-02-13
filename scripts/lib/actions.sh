@@ -103,7 +103,7 @@ fi
     ls -1 "$REPO_ROOT/scripts" 2>/dev/null | sed -n '1,200p' || true
     printf '\n'
     printf '%s\n' '--- key scripts snippets ---'
-    for f in "$REPO_ROOT/scripts/setup.sh" "$REPO_ROOT/scripts/run.sh" "$REPO_ROOT/scripts/check.sh" "$REPO_ROOT/scripts/lib/daemon.sh" "$REPO_ROOT/scripts/lib/director.sh" "$REPO_ROOT/scripts/lib/director_actions.sh"; do
+    for f in "$REPO_ROOT/scripts/setup.sh" "$REPO_ROOT/scripts/run.sh" "$REPO_ROOT/scripts/check.sh" "$REPO_ROOT/scripts/lib/daemon.sh" "$REPO_ROOT/scripts/lib/director.sh" "$REPO_ROOT/scripts/lib/actions.sh"; do
       if [ -r "$f" ]; then
         printf '\n--- %s (first 120 lines) ---\n' "$(basename \"$f\")"
         sed -n '1,120p' "$f" || true

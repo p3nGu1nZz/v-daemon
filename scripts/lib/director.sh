@@ -92,13 +92,13 @@ LOGFILE="${REPO_ROOT}/logs/director.log"
 
 echo "$(date +'%Y-%m-%dT%H:%M:%S%z') [AGENT-DIRECTOR] director agent starting (PID $$)" >>"$LOGFILE"
 # Source director actions (prefer fixed copy if present) and run autopilot summary asynchronously
-if [ -f "$SCRIPT_DIR/director_actions.sh" ]; then
-  . "$SCRIPT_DIR/director_actions.sh"
-elif [ -f "$SCRIPT_DIR/director_actions.sh" ]; then
-  . "$SCRIPT_DIR/director_actions.sh"
+if [ -f "$SCRIPT_DIR/actions.sh" ]; then
+  . "$SCRIPT_DIR/actions.sh"
+elif [ -f "$SCRIPT_DIR/actions.sh" ]; then
+  . "$SCRIPT_DIR/actions.sh"
 fi
 # Start a first autopilot summary in background if action scripts were sourced
-if [ -f "$SCRIPT_DIR/director_actions.sh" ] || [ -f "$SCRIPT_DIR/director_actions.sh" ]; then
+if [ -f "$SCRIPT_DIR/actions.sh" ] || [ -f "$SCRIPT_DIR/actions.sh" ]; then
   run_autopilot_summary 2>/dev/null &
 fi
 
@@ -108,8 +108,8 @@ while true; do
   echo "$heartbeat_ts [AGENT-DIRECTOR] heartbeat" >>"$LOGFILE"
   # Emit structured JSONL heartbeat for auditing
   printf '%s\n' "{\"ts\":\"$heartbeat_ts\",\"event\":\"heartbeat\",\"role\":\"director\",\"pid\":$$}" >>"$DEV_AUDITS_DIR/director-heartbeats.jsonl" || true
-  # Attempt autopilot summary in background; director_actions.sh will acquire its own lock
-  if [ -f "$SCRIPT_DIR/director_actions.sh" ]; then
+  # Attempt autopilot summary in background; actions.sh will acquire its own lock
+  if [ -f "$SCRIPT_DIR/actions.sh" ]; then
     ( run_autopilot_summary ) >/dev/null 2>&1 &
   fi
 
