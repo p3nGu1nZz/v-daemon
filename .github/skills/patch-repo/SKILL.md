@@ -7,7 +7,7 @@ description: "Create deterministic git patches (stage/commit) and optionally pus
 
 ## Summary
 
-Automate a simple SCM workflow to stage all changes, create a deterministic commit message (update:<tree-hash>), and optionally push to upstream using scripts/skills/patch-repo.sh. The skill captures stdout/stderr and writes a structured report under run/skills/patch-repo/<timestamp>/ for auditing and troubleshooting.
+Automate a simple SCM workflow to stage all changes, create a deterministic commit message (update:<tree-hash>), and push to upstream by default using scripts/skills/patch-repo.sh. The skill captures stdout/stderr and writes a structured report under run/skills/patch-repo/<timestamp>/ for auditing and troubleshooting.
 
 ## When to run
 
@@ -16,8 +16,8 @@ Automate a simple SCM workflow to stage all changes, create a deterministic comm
 
 ## Inputs
 
-- args (array) — arguments forwarded to scripts/skills/patch-repo.sh (e.g., ['--no-push']).
-- allow_push (bool, default: false) — when false, the agent should run with --no-push to avoid remote changes.
+- args (array) — arguments forwarded to scripts/skills/patch-repo.sh (only --help is supported; the script pushes by default).
+
 
 ## Outputs
 
@@ -29,22 +29,22 @@ Automate a simple SCM workflow to stage all changes, create a deterministic comm
 ## Execution steps
 
 1. Verify inside a git repository and capture working tree state and branch.
-2. If allow_push is false, ensure --no-push is passed to scripts/skills/patch-repo.sh.
+2. The skill pushes commits by default; ensure the calling agent has permission to push to the target remote/branch and avoid protected branches unless explicitly allowed.
 3. Run scripts/skills/patch-repo.sh, capturing stdout/stderr to run/skills/patch-repo/<timestamp>/.
-4. After execution, verify that the created commit was successfully pushed when pushing is permitted. Parse the skill report (report.json) or inspect remote state to determine push success. If the push failed and allow_push is true, retry pushing up to 3 times (capturing stdout/stderr for each attempt) before giving up; record each attempt and any errors in the run/skills/patch-repo/<timestamp>/ outputs.
+4. After execution, verify that the created commit was successfully pushed; the script will retry pushing up to 3 times before failing. Record each attempt and any errors in the run/skills/patch-repo/<timestamp>/ outputs.
 5. If any attempt succeeds, mark pushed=true and write the final report.json and status.txt. If all attempts fail after 3 retries, set status="failed", include details in notes (e.g., last push error), and exit with a non-zero error code so calling agents detect the failure.
 6. On non-push failures (e.g., commit creation failed), capture git status and git log -n 5 and include error details in report.json.
 
 ## Quality rules & safety
 
 - Do not push to protected branches (main, master, release) without explicit approval.
-- Prefer running with --no-push for review; pushing requires allow_push true and explicit consent.
+- This skill pushes by default; ensure protected branches are not targeted by automated runs without explicit consent.
 - Do not perform remote network operations; only perform git operations on configured remotes.
 
 ## Implementation notes
 
 - Helper script: scripts/skills/patch-repo.sh — wrapper that invokes scripts/skills/patch-repo.sh and captures outputs.
-- Example: sh scripts/skills/patch-repo.sh --no-push
+- Example: sh scripts/skills/patch-repo.sh
 
 ## References
 

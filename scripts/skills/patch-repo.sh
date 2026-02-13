@@ -13,13 +13,12 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/skills/patch-repo.sh [--help] [--no-push]
+Usage: scripts/skills/patch-repo.sh [--help]
 
 Automate a simple git patch workflow and capture outputs under run/skills/patch-repo/<timestamp>/.
 
 Options:
   --help      Show this help message and exit.
-  --no-push   Do not push the committed change to the remote; only create the commit locally.
 
 Notes:
   - The commit message uses the index tree hash (git write-tree) to uniquely identify the snapshot: update:<tree-hash>
@@ -28,16 +27,11 @@ Notes:
 USAGE
 }
 
-NO_PUSH=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --help|-h)
       usage
       exit 0
-      ;;
-    --no-push)
-      NO_PUSH=true
-      shift
       ;;
     *)
       echo "Unknown argument: $1" >&2
@@ -45,6 +39,7 @@ while [ $# -gt 0 ]; do
       exit 2
       ;;
   esac
+  shift
 done
 
 # Ensure we are in a git repo
@@ -139,27 +134,36 @@ new_commit_short=$(git rev-parse --short HEAD)
 echo "Created commit $new_commit_short"
 
 pushed=false
-if [ "$NO_PUSH" = "true" ]; then
-  echo "Created commit $new_commit_short (not pushed)."
-else
-  # Push to upstream (or set upstream if missing)
-  current_branch=$(git rev-parse --abbrev-ref HEAD)
-  upstream=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || true)
-  if [ -z "$upstream" ]; then
+# Attempt to push the created commit; retry up to 3 times on failure.
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+upstream=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || true)
+MAX_RETRIES=3
+attempt=1
+while [ $attempt -le $MAX_RETRIES ]; do
+  if [ -z "$upstream" ] && [ $attempt -eq 1 ]; then
     echo "No upstream configured for branch '$current_branch'. Pushing and setting upstream to origin/$current_branch..."
     if git push -u origin "$current_branch"; then
       pushed=true
+      break
     else
-      echo "git push failed." >&2
+      echo "git push attempt $attempt failed." >&2
     fi
   else
-    echo "Pushing to upstream..."
+    echo "Pushing to upstream (attempt $attempt)..."
     if git push; then
       pushed=true
+      break
     else
-      echo "git push failed." >&2
+      echo "git push attempt $attempt failed." >&2
     fi
   fi
+  attempt=$((attempt+1))
+  sleep 1
+done
+if [ "$pushed" = true ]; then
+  echo "Pushed commit: $(git rev-parse --short HEAD)"
+else
+  echo "All push attempts failed after $MAX_RETRIES tries." >&2
 fi
 
 pushed_commit_short=$(git rev-parse --short HEAD)
@@ -168,7 +172,13 @@ git --no-pager status >"$OUTDIR/status.txt" || true
 
 commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
 branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-exit_code=0
+if [ "$pushed" = true ]; then
+  pushed_json=true
+  exit_code=0
+else
+  pushed_json=false
+  exit_code=1
+fi
 
 # Write a structured JSON report
 cat >"$OUTDIR/report.json" <<JSON
@@ -188,9 +198,10 @@ JSON
 
 # Human-friendly summary
 if [ "$pushed" = true ]; then
+  pushed_commit_short=$(git rev-parse --short HEAD)
   echo "Pushed commit: $pushed_commit_short"
 else
-  echo "Created commit $new_commit_short (not pushed)."
+  echo "Created commit $new_commit_short (push failed)."
 fi
 
 echo "Outputs written to: $OUTDIR"
