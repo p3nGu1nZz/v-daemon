@@ -1,6 +1,9 @@
 #!/usr/bin/env sh
-# Check environment and dependencies for building and Docker usage (WSL-friendly)
+# Environment and dependency checker (WSL-friendly)
 set -eu
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo "Checking required commands..."
 missing=0
@@ -38,6 +41,20 @@ if [ -f /proc/version ] && grep -qi microsoft /proc/version 2>/dev/null; then
   fi
 else
   echo "Environment: non-WSL or undetected"
+fi
+
+# Verify Catch2 test library exists in external/Catch2 (accept multiple layouts)
+CATCH_DIR="${REPO_ROOT}/external/Catch2"
+if [ -d "$CATCH_DIR" ]; then
+  if [ -f "${CATCH_DIR}/single_include/catch2/catch.hpp" ] || [ -f "${CATCH_DIR}/single_include/catch2/catch_all.hpp" ] || [ -f "${CATCH_DIR}/src/catch2/catch_all.hpp" ] || [ -f "${CATCH_DIR}/src/catch2/catch.hpp" ]; then
+    echo "OK: Catch2 sources present at ${CATCH_DIR}"
+  else
+    echo "MISSING: Catch2 headers not found in ${CATCH_DIR} (run scripts/setup.sh to fetch and/or generate single header)" >&2
+    missing=1
+  fi
+else
+  echo "MISSING: Catch2 in external/Catch2 (run scripts/setup.sh to fetch)" >&2
+  missing=1
 fi
 
 if [ "$missing" -ne 0 ]; then

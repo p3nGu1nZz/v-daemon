@@ -65,4 +65,23 @@ if ! command -v ninja >/dev/null 2>&1 && command -v ninja-build >/dev/null 2>&1;
   sudo ln -sf "$(command -v ninja-build)" /usr/local/bin/ninja || true
 fi
 
+# Fetch Catch2 into external/Catch2
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+EXTERNAL_DIR="$REPO_ROOT/external"
+CATCH_DIR="$EXTERNAL_DIR/Catch2"
+if [ ! -d "$CATCH_DIR" ]; then
+  echo "Fetching Catch2 into $CATCH_DIR"
+  mkdir -p "$EXTERNAL_DIR"
+  if command -v git >/dev/null 2>&1; then
+    git clone --depth 1 https://github.com/catchorg/Catch2.git "$CATCH_DIR"
+    # remove git metadata to keep just the sources
+    rm -rf "$CATCH_DIR/.git" || true
+  else
+    echo "WARNING: git not found; cannot clone Catch2. Please install git or fetch Catch2 manually into $CATCH_DIR" >&2
+  fi
+else
+  echo "Catch2 already present at $CATCH_DIR"
+fi
+
 echo "Setup complete. Example build: mkdir -p build && cd build && cmake -G Ninja .. && ninja -j$(nproc 2>/dev/null || echo 2)"
