@@ -1,16 +1,19 @@
 # v-daemon
 
-v-daemon is a lightweight daemon project and the dev harness for the Director/Worker self-improvement loop ("DirectorDev"). This repository provides POSIX shell helper scripts to build, check, and run the daemon and director agent; C++ sources and a CMake-based build may be added under /src later. Use scripts/setup.sh to fetch Catch2 into external/Catch2 for unit tests, and scripts/build.sh to run CMake and Ninja when project CMake files are present.
+v-daemon is a small supervisor/daemon and development harness for exercising a Director/Worker autonomous loop ("DirectorDev"). The repo provides POSIX shell helper scripts to set up dependencies, run repository checks, and exercise a simple supervisor + agent workflow. Native C/C++ components and CMake support are optional and supported when present.
 
-## Requirements
+Status: early development — see TODO.md for planned milestones and tasks.
 
-- cmake
-- ninja
-- A C/C++ toolchain (g++ or clang)
+Requirements
 
-## Quick start
+- POSIX shell (sh)
+- cmake (optional, for C/C++ builds)
+- ninja (optional, for C/C++ builds)
+- A C/C++ toolchain (g++ or clang) if building native code
 
-1. Install/setup required tools (Linux):
+Quickstart (Linux)
+
+1. Install/setup required tools and dependencies:
 
    sh scripts/setup.sh --yes
 
@@ -18,28 +21,34 @@ v-daemon is a lightweight daemon project and the dev harness for the Director/Wo
 
    sh scripts/check.sh
 
-3. Build (out-of-source):
+3. Build (only if CMakeLists.txt exists):
 
    mkdir -p build && cd build && cmake -G Ninja .. && ninja -j$(nproc 2>/dev/null || echo 2)
 
-4. Run the daemon supervisor:
+4. Run the supervisor/daemon (development harness):
 
    sh scripts/run.sh [--monitor]
 
-## Project layout
+Development
 
-- build/ — out-of-source build directory
-- external/ — external dependencies or third-party code
-- scripts/ — helper scripts (setup, check, run)
+- scripts/setup.sh can fetch Catch2 into external/Catch2 for unit testing.
+- Add a top-level CMakeLists.txt and test targets to enable building tests; then run ctest or ninja test from build/.
+- The dev/ directory contains harness scripts and audit logs used during local development.
 
-## Tests and linting
+Repository layout
 
-Basic unit test support is available via Catch2 (scripts/setup.sh can fetch Catch2 into external/Catch2). To enable building and running tests, add a top-level CMakeLists.txt with test targets; use scripts/build.sh (cmake + ninja) or run ctest / ninja test after configuring the build.
+- dev/ — development harness, example agents, and audit logs
+- external/ — third-party dependencies (Catch2, etc.)
+- logs/ — durable logs produced by runs
+- run/ — runtime artifacts (PID files, sockets)
+- scripts/ — helper scripts (setup.sh, check.sh, run.sh, ...)
+- TODO.md — project milestones and tasks
 
-## License
+Contributing
 
-This project is provided under the terms in the LICENSE file in the repository root.
+- Open issues and PRs on GitHub; prefer small, focused PRs.
+- Do not commit secrets; store tokens in CI secrets or a vault.
 
-## Contributing
+License
 
-Contributions, issues, and feature requests are welcome via GitHub pull requests and issues.
+See the LICENSE file in the repository root.

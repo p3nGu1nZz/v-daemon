@@ -145,11 +145,16 @@ EOF
     COPILOT_ENV="env COPILOT_MODEL=gpt-5-mini"
 
     copilot_status=127
-    MAX_ATTEMPTS=3
-    ATTEMPT=1
-    usable=0
-    while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-      rm -f "$summary_file" "$out_dir/copilot.err" 2>/dev/null || true
+    if [ "$SUPPORTS_STDIN" -ne 1 ]; then
+      printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot CLI present but does not support --stdin; using local fallback\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
+      run_local_summarizer > "$summary_file" 2>/dev/null || true
+      usable=1
+    else
+      MAX_ATTEMPTS=3
+      ATTEMPT=1
+      usable=0
+      while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+        rm -f "$summary_file" "$out_dir/copilot.err" 2>/dev/null || true
   # Recompute prompt for this attempt; add stricter retry instructions on subsequent attempts
   active_prompt="$combined_prompt"
   if [ "$ATTEMPT" -gt 1 ]; then
@@ -159,41 +164,42 @@ EOF
     printf '%s\n' 'IMPORTANT: Do not include shell traces, error messages like "Permission denied", or copilot CLI hints. Use only the REPO SNAPSHOT and produce a concise plain-text summary (6-12 lines). Output only the summary.' >> "$retry_prompt"
     active_prompt="$retry_prompt"
   fi
-      printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot attempt %d/%d\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" "$MAX_ATTEMPTS" >>"$LOGFILE" 2>/dev/null || true
-      printf '%s [AGENT-DIRECTOR] Autopilot summary: attempting copilot (attempt %d/%d); stderr will be saved to %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" "$MAX_ATTEMPTS" "$out_dir/copilot.err" || true
+        printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot attempt %d/%d\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" "$MAX_ATTEMPTS" >>"$LOGFILE" 2>/dev/null || true
+        printf '%s [AGENT-DIRECTOR] Autopilot summary: attempting copilot (attempt %d/%d); stderr will be saved to %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" "$MAX_ATTEMPTS" "$out_dir/copilot.err" || true
 
-      if cat "$active_prompt" | $COPILOT_ENV copilot $COPILOT_OPTS >"$summary_file" 2>"$out_dir/copilot.err"; then
-        copilot_status=0
-      else
-        copilot_status=$?
-      fi
-
-      if [ -s "$summary_file" ]; then
-        cleaned=$(mktemp "/tmp/director_cleaned_${run_ts}.XXXXXX") || cleaned="$summary_file"
-        grep -i -v -E 'Permission denied|could not request permission|Try .*copilot --help|^\\$ |^\\s*✗|Reading README|Running parallel|Attempt to read|^\\s*\\$' "$summary_file" > "$cleaned" 2>/dev/null || cp "$summary_file" "$cleaned" 2>/dev/null || true
-        if [ -s "$cleaned" ]; then
-          mv "$cleaned" "$summary_file" 2>/dev/null || cp "$cleaned" "$summary_file" 2>/dev/null || true
-          printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced usable output on attempt %d\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" >>"$LOGFILE" 2>/dev/null || true
-          printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced usable output on attempt %d (summary: %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" "$summary_file" || true
-          if [ -f "$out_dir/copilot.err" ] && [ -s "$out_dir/copilot.err" ]; then
-            printf '%s [AGENT-DIRECTOR] copilot stderr (trimmed):\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
-            sed -n '1,50p' "$out_dir/copilot.err" >>"$LOGFILE" 2>/dev/null || true
-          fi
-          usable=1
-          break
+        if cat "$active_prompt" | $COPILOT_ENV copilot $COPILOT_OPTS >"$summary_file" 2>"$out_dir/copilot.err"; then
+          copilot_status=0
         else
-          printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot output contained only errors on attempt %d, retrying\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" >>"$LOGFILE" 2>/dev/null || true
-          printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot output contained only errors on attempt %d, retrying (console)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" || true
-          rm -f "$cleaned" 2>/dev/null || true
+          copilot_status=$?
         fi
-      else
-        printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced no output (exit %s) on attempt %d, stderr saved to %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$copilot_status" "$ATTEMPT" "$out_dir/copilot.err" >>"$LOGFILE" 2>/dev/null || true
-        printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced no output (exit %s) on attempt %d; check %s for details\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$copilot_status" "$ATTEMPT" "$out_dir/copilot.err" || true
-      fi
 
-      ATTEMPT=$((ATTEMPT+1))
-      sleep 1
-    done
+        if [ -s "$summary_file" ]; then
+          cleaned=$(mktemp "/tmp/director_cleaned_${run_ts}.XXXXXX") || cleaned="$summary_file"
+          grep -i -v -E 'Permission denied|could not request permission|Try .*copilot --help|^\\$ |^\\s*✗|Reading README|Running parallel|Attempt to read|^\\s*\\$' "$summary_file" > "$cleaned" 2>/dev/null || cp "$summary_file" "$cleaned" 2>/dev/null || true
+          if [ -s "$cleaned" ]; then
+            mv "$cleaned" "$summary_file" 2>/dev/null || cp "$cleaned" "$summary_file" 2>/dev/null || true
+            printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced usable output on attempt %d\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" >>"$LOGFILE" 2>/dev/null || true
+            printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced usable output on attempt %d (summary: %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" "$summary_file" || true
+            if [ -f "$out_dir/copilot.err" ] && [ -s "$out_dir/copilot.err" ]; then
+              printf '%s [AGENT-DIRECTOR] copilot stderr (trimmed):\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
+              sed -n '1,50p' "$out_dir/copilot.err" >>"$LOGFILE" 2>/dev/null || true
+            fi
+            usable=1
+            break
+          else
+            printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot output contained only errors on attempt %d, retrying\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" >>"$LOGFILE" 2>/dev/null || true
+            printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot output contained only errors on attempt %d, retrying (console)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" || true
+            rm -f "$cleaned" 2>/dev/null || true
+          fi
+        else
+          printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced no output (exit %s) on attempt %d, stderr saved to %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$copilot_status" "$ATTEMPT" "$out_dir/copilot.err" >>"$LOGFILE" 2>/dev/null || true
+          printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced no output (exit %s) on attempt %d; check %s for details\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$copilot_status" "$ATTEMPT" "$out_dir/copilot.err" || true
+        fi
+
+        ATTEMPT=$((ATTEMPT+1))
+        sleep 1
+      done
+    fi
 
     if [ "$usable" -ne 1 ]; then
       if [ -s "$summary_file" ]; then
