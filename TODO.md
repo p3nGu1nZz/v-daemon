@@ -10,7 +10,7 @@ Build a recursive, autonomous development engine (Director) that can summarize, 
   - Acceptance: `scripts/run.sh start` launches supervisor + daemon; pidfiles appear under `run/` and heartbeats are written to `logs/`.
 
 - **Milestone 1 — Summarize & Plan**
-  - Acceptance: `summarize-repo` and `next-steps` write artifacts into `run/skills/<name>/<timestamp>`.
+  - Acceptance: `review-repo` and `next-steps` write artifacts into `run/skills/<name>/<timestamp>`.
 
 - **Milestone 2 — Safe Patch Execution**
   - Acceptance: sandboxed patcher applies a change, runs `scripts/setup.sh`, and records artifacts under `run/skills/patcher`.

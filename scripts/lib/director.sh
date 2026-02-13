@@ -18,7 +18,7 @@ if [ -f "$REPO_ROOT/scripts/lib/config.sh" ]; then
 fi
 PIDFILE="${RUN_DIR}/v-director.pid"
 LOCKDIR="${RUN_DIR}/v-director.lock"
-SCRIPT_NAME="$(basename \"$0\")"
+SCRIPT_NAME="$(basename "$0")"
 
 # Acquire a simple lock using mkdir to avoid concurrent director instances
 acquire_lock() {
@@ -94,11 +94,9 @@ echo "$(date +'%Y-%m-%dT%H:%M:%S%z') [AGENT-DIRECTOR] director agent starting (P
 # Source director actions (prefer fixed copy if present) and run autopilot summary asynchronously
 if [ -f "$SCRIPT_DIR/actions.sh" ]; then
   . "$SCRIPT_DIR/actions.sh"
-elif [ -f "$SCRIPT_DIR/actions.sh" ]; then
-  . "$SCRIPT_DIR/actions.sh"
 fi
 # Start a first autopilot summary in background if action scripts were sourced
-if [ -f "$SCRIPT_DIR/actions.sh" ] || [ -f "$SCRIPT_DIR/actions.sh" ]; then
+if [ -f "$SCRIPT_DIR/actions.sh" ]; then
   run_autopilot_summary 2>/dev/null &
 fi
 

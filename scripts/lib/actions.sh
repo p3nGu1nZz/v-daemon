@@ -69,10 +69,10 @@ run_autopilot_summary() {
   exec >>"$LOGFILE" 2>&1
 
   prompt_file=$(mktemp "/tmp/director_prompt_${run_ts}.XXXXXX") || prompt_file="/tmp/director_prompt_${run_ts}.$$"
-if [ -f \"$REPO_ROOT/scripts/lib/prompts.sh\" ]; then
-  show_prompt summarize > \"$prompt_file\"
+if [ -f "$REPO_ROOT/scripts/lib/prompts.sh" ]; then
+  show_prompt summarize > "$prompt_file"
 else
-  cat > \"$prompt_file\" <<'EOF'
+  cat > "$prompt_file" <<'EOF'
 You are an expert code reviewer. Analyze the repository in the current working directory and produce a concise summary (6-12 lines) describing:
 - project purpose
 - main components and key files
@@ -105,7 +105,7 @@ fi
     printf '%s\n' '--- key scripts snippets ---'
     for f in "$REPO_ROOT/scripts/setup.sh" "$REPO_ROOT/scripts/run.sh" "$REPO_ROOT/scripts/lib/daemon.sh" "$REPO_ROOT/scripts/lib/director.sh" "$REPO_ROOT/scripts/lib/actions.sh"; do
       if [ -r "$f" ]; then
-        printf '\n--- %s (first 120 lines) ---\n' "$(basename \"$f\")"
+        printf '\n--- %s (first 120 lines) ---\n' "$(basename "$f")"
         sed -n '1,120p' "$f" || true
       fi
     done
@@ -316,10 +316,10 @@ run_autopilot_plan() {
   plan_sanitized="$out_dir/plan_sanitized.txt"
   plan_tasks="$out_dir/tasks.txt"
   plan_prompt_file=$(mktemp "/tmp/director_plan_prompt_${plan_ts}.XXXXXX") || plan_prompt_file="$out_dir/plan_prompt.txt"
-if [ -f \"$REPO_ROOT/scripts/lib/prompts.sh\" ]; then
-  show_prompt next > \"$plan_prompt_file\"
+if [ -f "$REPO_ROOT/scripts/lib/prompts.sh" ]; then
+  show_prompt next > "$plan_prompt_file"
 else
-  cat > \"$plan_prompt_file\" <<'PLANPROMPT'
+  cat > "$plan_prompt_file" <<'PLANPROMPT'
 You are an expert project manager and code reviewer.
 Given the repository summary below and the provided REPO SNAPSHOT, produce an itemized, prioritized list of clear, actionable todo items for maintainers to work on next.
 - Output as a plain list where each line begins with "- " and is a concise task title (5-12 words), optionally followed by a short 1-sentence description after a colon.

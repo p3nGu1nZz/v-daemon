@@ -5,7 +5,7 @@
 # Minimal TOML reader for simple key = "value" entries under sections.
 _toml_get() {
   cfg="$1"; key="$2"; file="$3"
-  awk -v sec="["cfg"]" -v key="$key" '
+  awk -v sec="[$cfg]" -v key="$key" '
     $0 ~ sec {insec=1; next}
     /^\[/ {insec=0}
     insec && $0 ~ "^[[:space:]]*"key"[[:space:]]*=" {

@@ -10,7 +10,7 @@ This document describes actionable skills and run commands for maintainers and a
 
 ## Primary skills
 
-- `summarize-repo` — produce a concise summary and structured JSON in `run/skills/summarize-repo/<timestamp>`.
+- `review-repo` — produce a concise summary and structured JSON in `run/skills/review-repo/<timestamp>`.
 - `next-steps` — generate prioritized, PR-sized tasks and optionally insert them into the `todos` table.
 - `run-project` — start and manage the supervisor/daemon lifecycle.
 

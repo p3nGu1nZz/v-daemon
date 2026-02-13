@@ -86,7 +86,7 @@ hfsm_set_handler() {
 
 hfsm_current() {
   local h="$1"
-  eval "printf '%s' \"\">${h}__current:-}\""
+  eval "printf '%s' \"\${${h}__current}\""
 }
 
 # internal helper: build ancestors array (state->root)

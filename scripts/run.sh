@@ -340,7 +340,7 @@ monitor_foreground() {
 case "${1:-}" in
   start)
     if [ -f "$SUP_PIDFILE" ] && is_pid_for_script "$(cat "$SUP_PIDFILE")" "$SCRIPT_DIR/lib/supervise.sh"; then
-      printf 'Supervisor already running (PID %s)\n' "$(cat \"$SUP_PIDFILE\")" >&2
+      printf 'Supervisor already running (PID %s)\n' "$(cat "$SUP_PIDFILE")" >&2
       exit 0
     fi
     # Rotate logs before starting a fresh supervisor
