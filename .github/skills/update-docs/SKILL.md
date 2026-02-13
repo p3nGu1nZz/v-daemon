@@ -1,6 +1,6 @@
 ---
 name: update-docs
-description: "Review repository documentation and source/scripts and generate a comprehensive set of documentation/specification updates and todos; populate docs/specs/* to mirror scripts/ and src/."
+description: "Scan repo docs and source to generate docs/specs/*, prioritized todos (todos.json), and machine-readable reports; safe, non-destructive by default (scripts/docs.sh)."
 ---
 
 # SKILL: update-docs

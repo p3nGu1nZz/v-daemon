@@ -1,6 +1,6 @@
 ---
 name: patch-repo
-description: "Automate staging, committing, and pushing changes to git using scripts/skills/patch-repo.sh"
+description: "Create deterministic git patches (stage/commit) and optionally push safely; writes audit reports under run/skills/patch-repo (scripts/skills/patch-repo.sh)."
 ---
 
 # SKILL: patch-repo

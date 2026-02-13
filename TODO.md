@@ -1,5 +1,12 @@
 # TODO: Fast-track to an autonomous self-improving engine
 
+Recent changes (2026-02-13):
+
+- Centralized environment helpers in scripts/lib/env.sh (env_init) and made it idempotent to avoid double-sourcing; scripts now call env_init once per command scope.
+- Hardened many scripts for portability across Linux/macOS/BSD: replaced in-place sed -i with mktemp pattern, added ps_fallback, safer find/grep usage, timeout fallbacks, and directory guards for update-docs.
+- Improved SKILL.md short descriptions to help Copilot CLI /skills discovery.
+
+
 ## Prime directive
 
 Build a recursive, autonomous development engine (Director) that can summarize, plan, implement small safe patches, verify results, and iterate under operator control.

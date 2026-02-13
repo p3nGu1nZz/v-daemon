@@ -3,9 +3,10 @@
 set -eu
 
 usage() {
-  echo "Usage: $0 [--yes|-y|--check]"
+  echo "Usage: $0 [--yes|-y|--check|--clean]"
   echo "Installs required packages (cmake, ninja, a C++ toolchain, git) for common Linux distros."
   echo "Use --check to run repository checks only (no installs)."
+  echo "Use --clean to remove generated artifacts (audits, logs, run)."
   exit 1
 }
 
@@ -84,16 +85,37 @@ run_checks() {
   echo "All checks passed."
 }
 
+clean_artifacts() {
+  echo "Cleaning generated artifacts under $REPO_ROOT..."
+  targets="$REPO_ROOT/audits $REPO_ROOT/logs $REPO_ROOT/run"
+  for t in $targets; do
+    if [ -e "$t" ]; then
+      echo "Removing $t"
+      rm -rf "$t" || echo "Failed to remove $t"
+    else
+      echo "Not found: $t"
+    fi
+  done
+  echo "Clean complete."
+}
+
 FORCE=0
 CHECK_ONLY=0
+CLEAN=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -y|--yes) FORCE=1; shift;;
     --check) CHECK_ONLY=1; shift;;
+    --clean) CLEAN=1; shift;;
     -h|--help) usage;;
     *) echo "Unknown argument: $1"; usage;;
   esac
 done
+
+if [ "$CLEAN" -eq 1 ]; then
+  clean_artifacts
+  exit 0
+fi
 
 if [ "$CHECK_ONLY" -eq 1 ]; then
   run_checks

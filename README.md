@@ -6,6 +6,13 @@ v-daemon provides small POSIX shell helpers to set up dependencies, run reposito
 
 **Status:** Early development — the long-term goal is a safe, iterative engine that summarizes the repository, generates prioritized tasks, and applies small, verifiable changes under automated governance. Decisions about what to implement are determined via discourse by the repository's code-review personas; the Director persona synthesizes votes and makes release decisions aligned with the project's prime directive. There is no separate human-in-the-loop approval step.
 
+Recent updates (2026-02-13):
+
+- Centralized env helpers: scripts/lib/env.sh (env_init) now sources console.sh, logger.sh, prompts.sh and is idempotent; scripts call env_init to avoid duplicate sourcing.
+- Script hardening: portable fallbacks introduced for sed -i, ps (ps_fallback), timeout, and safer find/grep usage; update-docs now creates OUT/RAW directories and guards file reads.
+- SKILL.md improvements: short descriptions were updated to improve Copilot CLI /skills discovery and context.
+
+
 ## Quickstart
 
 1. Prepare your environment:

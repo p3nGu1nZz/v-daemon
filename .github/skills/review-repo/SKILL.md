@@ -1,6 +1,6 @@
 ---
 name: review-repo
-description: "Comprehensive code and documentation review to evaluate alignment with the project's prime directive: create an autonomous, self-improving, optimizing, and evolving agent swarm with secure, decentralized networking to extend Copilot CLI and Copilot SDK."
+description: "Perform a repo-wide code and documentation review focused on autonomy, agent swarm design, security, and decentralization; produce structured summaries and raw captures."
 ---
 
 # SKILL: review-repo

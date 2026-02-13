@@ -1,6 +1,6 @@
 ---
 name: create-agent
-description: "Scaffold a new agent descriptor under .github/agents and an optional companion script under scripts/agents."
+description: "Scaffold a non-destructive agent descriptor (.github/agents) and optional runtime script (scripts/agents), producing metadata and an audit report."
 ---
 
 # SKILL: create-agent

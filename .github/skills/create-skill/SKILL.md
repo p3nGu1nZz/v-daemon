@@ -1,6 +1,6 @@
 ---
 name: create-skill
-description: "Create a new SKILL.md and optional companion helper script in scripts/skills."
+description: "Add a Copilot-discoverable SKILL.md under .github/skills/<name> and optional scripts/skills/<name>.sh scaffold, emitting a run/skills/create-skill report."
 ---
 
 # SKILL: create-skill

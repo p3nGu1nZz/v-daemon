@@ -1,6 +1,6 @@
 ---
 name: run-project
-description: "Start, monitor, and stop the v-daemon supervisor and daemon."
+description: "Manage v-daemon lifecycle: start, stop, status, and monitor supervisor, director, and daemon with log streaming and PID management."
 ---
 
 # run-project

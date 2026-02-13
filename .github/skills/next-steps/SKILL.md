@@ -1,6 +1,6 @@
 ---
 name: next-steps
-description: "Generate a comprehensive but concise set (up to 20) of prioritized next steps from summary.json, covering fixes, enhancements, refactors, new features, and documentation."
+description: "Produce a prioritized, actionable task list (<=20) from a repo summary with acceptance criteria, complexity, impact, and suggested branches/PRs."
 ---
 
 # SKILL: next-steps
