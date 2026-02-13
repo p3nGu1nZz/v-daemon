@@ -9,6 +9,18 @@ if [ -f "$REPO_ROOT/scripts/lib/config.sh" ]; then
   . "$REPO_ROOT/scripts/lib/config.sh"
   config_init "$REPO_ROOT"
 fi
+# Load environment helper which sets RUN_DIR, LOG_DIR, etc.
+if [ -f "$REPO_ROOT/scripts/lib/env.sh" ]; then
+  . "$REPO_ROOT/scripts/lib/env.sh"
+  env_init "$REPO_ROOT"
+fi
+# Load console and logger helpers for consistent output and logging APIs
+if [ -f "$REPO_ROOT/scripts/lib/console.sh" ]; then
+  . "$REPO_ROOT/scripts/lib/console.sh"
+fi
+if [ -f "$REPO_ROOT/scripts/lib/logger.sh" ]; then
+  . "$REPO_ROOT/scripts/lib/logger.sh"
+fi
 DAEMON="${SCRIPT_DIR}/lib/daemon.sh"
 DIRECTOR="${SCRIPT_DIR}/lib/director.sh"
 mkdir -p "$RUN_DIR" "$LOG_DIR"

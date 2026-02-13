@@ -8,6 +8,18 @@ LOGFILE="${REPO_ROOT}/logs/director.log"
 DEV_AUDITS_DIR="$REPO_ROOT/audits"
 mkdir -p "$DEV_AUDITS_DIR"
 
+# Load environment, console, and logger helpers if available for consistent env and logging
+if [ -f "$REPO_ROOT/scripts/lib/env.sh" ]; then
+  . "$REPO_ROOT/scripts/lib/env.sh"
+  env_init "$REPO_ROOT"
+fi
+if [ -f "$REPO_ROOT/scripts/lib/console.sh" ]; then
+  . "$REPO_ROOT/scripts/lib/console.sh"
+fi
+if [ -f "$REPO_ROOT/scripts/lib/logger.sh" ]; then
+  . "$REPO_ROOT/scripts/lib/logger.sh"
+fi
+
 # Local summarizer removed; Copilot CLI is required for autopilot summaries.
 
 # Run autopilot summary: use copilot CLI only (no local fallback)
