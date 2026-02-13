@@ -63,17 +63,10 @@ run_autopilot_summary() {
 if [ -f "$REPO_ROOT/scripts/lib/prompts.sh" ]; then
   show_prompt summarize > "$prompt_file"
 else
-  cat > "$prompt_file" <<'EOF'
-You are an expert code reviewer. Analyze the repository in the current working directory and produce a concise summary (6-12 lines) describing:
-- project purpose
-- main components and key files
-- how to build and run tests
-- outstanding TODOs from TODO.md (if present)
-Provide a plain-text report suitable for logging and auditing.
-Important: DO NOT attempt to access files on disk or request interactive permission; only use the REPO SNAPSHOT provided before this prompt.
-Important: Do NOT simulate executing scripts or produce shell session output (for example, lines beginning with "$" or "✗") and do NOT include permission errors or interactive permission requests in your output. If checks would normally be executed, describe the expected checks and outcomes in plain text without simulating command execution.
-Return only the concise summary lines; do not add debugging, step-by-step actions, or request user input.
-EOF
+  printf '%s [AGENT-DIRECTOR] Autopilot summary: prompts.sh missing; aborting\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
+  cleanup_lock
+  trap - EXIT INT TERM
+  return 1
 fi
 
   # Build a small repository snapshot to include with the prompt so copilot doesn't need filesystem access
@@ -310,16 +303,8 @@ run_autopilot_plan() {
 if [ -f "$REPO_ROOT/scripts/lib/prompts.sh" ]; then
   show_prompt next > "$plan_prompt_file"
 else
-  cat > "$plan_prompt_file" <<'PLANPROMPT'
-You are an expert project manager and code reviewer.
-Given the repository summary below and the provided REPO SNAPSHOT, produce an itemized, prioritized list of clear, actionable todo items for maintainers to work on next.
-- Output as a plain list where each line begins with "- " and is a concise task title (5-12 words), optionally followed by a short 1-sentence description after a colon.
-- Prioritize tasks by impact and ease of implementation.
-- Limit to 12 items.
-- Do not include simulated command output, permission errors, "Asked user", or tool traces.
-- Use only the provided summary and snapshot; do not invent execution traces or simulate running scripts.
-Return only the bullet list.
-PLANPROMPT
+  printf '%s [AGENT-DIRECTOR] Autopilot plan: prompts.sh missing; aborting\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
+  return 1
 fi
 
   # Build plan input (context + summary + plan instructions)
