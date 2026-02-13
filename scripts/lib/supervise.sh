@@ -45,15 +45,55 @@ while true; do
       # Stale PID file
       rm -f "$DAEMON_PIDFILE" 2>/dev/null || true
       printf '%s [SUP] Supervisor: starting daemon\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$SUP_LOGFILE"
+      # Rotate logs before starting a new daemon if rotate script present and logfile non-empty
+      if [ -x "$REPO_ROOT/scripts/rotate_logs.sh" ] && [ -s "$LOGFILE" ]; then
+        sh "$REPO_ROOT/scripts/rotate_logs.sh" || true
+      fi
       nohup sh "$DAEMON" >>"$LOGFILE" 2>&1 &
-      echo $! >"$DAEMON_PIDFILE"
-      printf '%s [SUP] Supervisor: started daemon (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$(cat $DAEMON_PIDFILE)" >>"$SUP_LOGFILE"
+      DAEMON_START_PID=$!
+      # wait up to ~5s for the daemon to create its own pidfile
+      WAITED=0
+      while [ $WAITED -lt 25 ]; do
+        if [ -f "$DAEMON_PIDFILE" ]; then
+          DPID=$(cat "$DAEMON_PIDFILE" 2>/dev/null || true)
+          if [ -n "$DPID" ] && kill -0 "$DPID" 2>/dev/null; then
+            printf '%s [SUP] Supervisor: started daemon (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$DPID" >>"$SUP_LOGFILE"
+            break
+          fi
+        fi
+        sleep 0.2
+        WAITED=$((WAITED+1))
+      done
+      if [ ! -f "$DAEMON_PIDFILE" ]; then
+        # fallback: write the pid we started
+        echo "$DAEMON_START_PID" >"$DAEMON_PIDFILE" 2>/dev/null || true
+        printf '%s [SUP] Supervisor: started daemon (PID %s) (pidfile created by supervisor)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$DAEMON_START_PID" >>"$SUP_LOGFILE"
+      fi
     fi
   else
     printf '%s [SUP] Supervisor: starting daemon (no pidfile)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$SUP_LOGFILE"
+    # Rotate logs before starting a new daemon if rotate script present and logfile non-empty
+    if [ -x "$REPO_ROOT/scripts/rotate_logs.sh" ] && [ -s "$LOGFILE" ]; then
+      sh "$REPO_ROOT/scripts/rotate_logs.sh" || true
+    fi
     nohup sh "$DAEMON" >>"$LOGFILE" 2>&1 &
-    echo $! >"$DAEMON_PIDFILE"
-    printf '%s [SUP] Supervisor: started daemon (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$(cat $DAEMON_PIDFILE)" >>"$SUP_LOGFILE"
+    DAEMON_START_PID=$!
+    WAITED=0
+    while [ $WAITED -lt 25 ]; do
+      if [ -f "$DAEMON_PIDFILE" ]; then
+        DPID=$(cat "$DAEMON_PIDFILE" 2>/dev/null || true)
+        if [ -n "$DPID" ] && kill -0 "$DPID" 2>/dev/null; then
+          printf '%s [SUP] Supervisor: started daemon (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$DPID" >>"$SUP_LOGFILE"
+          break
+        fi
+      fi
+      sleep 0.2
+      WAITED=$((WAITED+1))
+    done
+    if [ ! -f "$DAEMON_PIDFILE" ]; then
+      echo "$DAEMON_START_PID" >"$DAEMON_PIDFILE" 2>/dev/null || true
+      printf '%s [SUP] Supervisor: started daemon (PID %s) (pidfile created by supervisor)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$DAEMON_START_PID" >>"$SUP_LOGFILE"
+    fi
   fi
   sleep "$CHECK_INTERVAL"
 done

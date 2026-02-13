@@ -20,6 +20,7 @@ Commands:
   start           Start the supervisor (background).
   stop            Stop supervisor and daemon.
   status          Print supervisor and daemon status.
+  rotate          Rotate and archive logs in ./logs
 
 Options:
   --monitor, -m   After running the command, stream daemon and supervisor logs and print status lines (runs in foreground).
@@ -166,6 +167,10 @@ case "${1:-}" in
       echo "Supervisor already running (PID $(cat "$SUP_PIDFILE"))"
       exit 0
     fi
+    # Rotate logs before starting a fresh supervisor
+    if [ -x "$SCRIPT_DIR/rotate_logs.sh" ]; then
+      sh "$SCRIPT_DIR/rotate_logs.sh" || echo "Log rotation failed" >&2
+    fi
     start_supervisor_bg
     if [ "$MONITOR" -eq 1 ]; then
       monitor_foreground
@@ -241,6 +246,11 @@ case "${1:-}" in
       done
     fi
 
+    # Rotate logs after stopping supervisor/daemon
+    if [ -x "$SCRIPT_DIR/rotate_logs.sh" ]; then
+      sh "$SCRIPT_DIR/rotate_logs.sh" || echo "Log rotation failed" >&2
+    fi
+
     if [ "$MONITOR" -eq 1 ]; then
       monitor_foreground
     fi
@@ -260,7 +270,10 @@ case "${1:-}" in
       monitor_foreground
     fi
     ;;
-
+  rotate)
+    shift
+    sh "$SCRIPT_DIR/rotate_logs.sh" "$@"
+    ;;
 
 
   *)

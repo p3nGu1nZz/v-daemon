@@ -13,7 +13,28 @@ USAGE
 fi
 
 PIDFILE="/tmp/v-daemon.pid"
-trap 'rm -f "$PIDFILE"; exit 0' INT TERM EXIT
+
+# If a daemon is already running, exit to avoid multiple writers to the log
+if [ -f "$PIDFILE" ]; then
+  EXIST_PID=$(cat "$PIDFILE" 2>/dev/null || true)
+  if [ -n "$EXIST_PID" ] && kill -0 "$EXIST_PID" 2>/dev/null; then
+    echo "Daemon already running (PID $EXIST_PID)" >&2
+    exit 0
+  else
+    # stale pidfile
+    rm -f "$PIDFILE" 2>/dev/null || true
+  fi
+fi
+
+cleanup() {
+  # only remove pidfile if it belongs to this process
+  if [ -f "$PIDFILE" ] && [ "$(cat "$PIDFILE" 2>/dev/null || true)" = "$$" ]; then
+    rm -f "$PIDFILE"
+  fi
+  exit 0
+}
+trap 'cleanup' INT TERM EXIT
+
 echo $$ >"$PIDFILE"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
