@@ -1,6 +1,6 @@
 # v-daemon
 
-v-daemon is a lightweight daemon project. This repository contains sources, a CMake-based build setup, and helper scripts to build, check, and run the daemon.
+v-daemon is a lightweight daemon project. This repository currently provides POSIX shell helper scripts to build, check, and run the daemon; C++ sources and a CMake-based build may be added under /src later. Use scripts/setup.sh to fetch Catch2 into external/Catch2 for unit tests, and scripts/build.sh to run CMake and Ninja when project CMake files are present.
 
 ## Requirements
 
@@ -34,7 +34,7 @@ v-daemon is a lightweight daemon project. This repository contains sources, a CM
 
 ## Tests and linting
 
-No test runner or linter was detected in the repository snapshot. Consider adding tests and linters as needed.
+Basic unit test support is available via Catch2 (scripts/setup.sh can fetch Catch2 into external/Catch2). To enable building and running tests, add a top-level CMakeLists.txt with test targets; use scripts/build.sh (cmake + ninja) or run ctest / ninja test after configuring the build.
 
 ## License
 
