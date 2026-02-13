@@ -361,12 +361,16 @@ monitor_foreground() {
 
   # Background refresher to update an anchored status line with uptime/errors/swarm state
   monitor_start_ts=$(date +%s)
+  MONITOR_INTERVAL="${MONITOR_INTERVAL:-5}"
   # Record whether monitor started while swarm was active; only auto-exit if it was
   INITIAL_ACTIVE=0
   if [ "$SWARM_STATUS" != "swarm offline" ]; then
     INITIAL_ACTIVE=1
   fi
   LAST_SWARM_STATUS="$SWARM_STATUS"
+  LAST_STATUS_LINE=""
+  LAST_LOG_MTIME=""
+  LAST_ERROR_COUNT=0
 
   refresh_status_loop() {
     while :; do
@@ -385,8 +389,18 @@ monitor_foreground() {
       h=$((uptime_secs/3600)); m=$(((uptime_secs%3600)/60)); s=$((uptime_secs%60))
       uptime_fmt=$(printf '%d:%02d:%02d' $h $m $s)
 
-      # Error count from logs (case-insensitive match on error/failed/exception)
-      ERRORS=$(grep -i -E "error|failed|exception" "$LOGFILE" "$SUP_LOGFILE" "$DIRECTOR_LOG" 2>/dev/null | wc -l || true)
+      # Error count from logs: recompute only when logs change (by mtime)
+      mt1=$(stat -c %Y "$LOGFILE" 2>/dev/null || echo 0)
+      mt2=$(stat -c %Y "$SUP_LOGFILE" 2>/dev/null || echo 0)
+      mt3=$(stat -c %Y "$DIRECTOR_LOG" 2>/dev/null || echo 0)
+      mt_combined="$mt1:$mt2:$mt3"
+      if [ "$mt_combined" != "$LAST_LOG_MTIME" ]; then
+        ERRORS=$(grep -i -E "error|failed|exception" "$LOGFILE" "$SUP_LOGFILE" "$DIRECTOR_LOG" 2>/dev/null | wc -l || true)
+        LAST_LOG_MTIME="$mt_combined"
+        LAST_ERROR_COUNT="$ERRORS"
+      else
+        ERRORS="$LAST_ERROR_COUNT"
+      fi
 
       # Gather process list once per iteration for efficiency
       if command -v ps_fallback >/dev/null 2>&1; then
@@ -437,8 +451,11 @@ monitor_foreground() {
       fi
 
       status_line="[SYSTEM] Uptime: $uptime_fmt | errors: $ERRORS | $SWARM_STATUS"
-      # Save cursor, move to bottom, clear line, print status, restore cursor
-      printf '\033[s\033[999B\033[2K\r%s\033[u' "$status_line" >&2
+      # Only redraw anchored status when it changes to reduce flicker
+      if [ "${status_line}" != "${LAST_STATUS_LINE}" ]; then
+        printf '\033[s\033[999B\033[2K\r%s\033[u' "$status_line" >&2
+        LAST_STATUS_LINE="$status_line"
+      fi
 
       # If the swarm was active when the monitor started but is now offline, exit monitor gracefully
       if [ "$INITIAL_ACTIVE" -eq 1 ] && [ "$SWARM_STATUS" = "swarm offline" ]; then
@@ -466,7 +483,7 @@ monitor_foreground() {
         break
       fi
 
-      sleep "${CHECK_INTERVAL:-5}"
+      sleep "$MONITOR_INTERVAL"
     done
   }
   refresh_status_loop & STATUS_PID=$!
