@@ -569,6 +569,10 @@ monitor_foreground() {
       UPTIME_FMT=$(printf '%d:%02d:%02d' $h $m $s)
     fi
   fi
+  # If no swarm nodes are online, show zero uptime to emphasize swarm offline state
+  if [ "$SWARM_STATUS" = "swarm offline" ]; then
+    UPTIME_FMT="0:00:00"
+  fi
 
   printf '%s [SYSTEM] Supervisor: %s | Daemon: %s | Uptime: %s | %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$SUP_RUNNING" "$DAEMON_RUNNING" "$UPTIME_FMT" "$SWARM_STATUS" >&2
 
@@ -671,66 +675,126 @@ monitor_foreground() {
       else
         SWARM_STATUS="swarm offline"
       fi
+      # If swarm is offline, force displayed uptime to zero
+      if [ "$SWARM_STATUS" = "swarm offline" ]; then
+        uptime_fmt="0:00:00"
+      fi
 
       # Emit event line on status transitions
       if [ "$SWARM_STATUS" != "$LAST_SWARM_STATUS" ]; then
-        if [ "$SWARM_STATUS" = "swarm offline" ]; then
-          printf '%s [SYSTEM] swarm went offline\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >&2
-        else
-          printf '%s [SYSTEM] swarm is now running (%d workers)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$WORKER_COUNT" >&2
+        if [ "${STREAM_LOGS:-0}" -eq 1 ]; then
+          if [ "$SWARM_STATUS" = "swarm offline" ]; then
+            printf '%s [SYSTEM] swarm went offline\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >&2
+          else
+            printf '%s [SYSTEM] swarm is now running (%d workers)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$WORKER_COUNT" >&2
+          fi
         fi
         LAST_SWARM_STATUS="$SWARM_STATUS"
       fi
 
       status_line="[SYSTEM] Uptime: $uptime_fmt | errors: $ERRORS | $SWARM_STATUS"
-      # Build a tree of registered workers and display it above the anchored status line
+      # Build a hierarchical tree of swarm components and display it above the anchored status line
       tree_tmp="$(mktemp "/tmp/swarm_tree_XXXXXX" 2>/dev/null || echo "/tmp/swarm_tree_$$")"
       : > "$tree_tmp"
 
       if command -v proc_list_registered >/dev/null 2>&1; then
-        proc_list_registered | while read -r nm pid; do
-          [ -z "$nm" ] && continue
-          ln=$(printf '%s' "$nm" | tr 'A-Z' 'a-z')
-          icon='*'
-          case "$ln" in
-            *director*) icon='D' ;;
-            *daemon*) icon='M' ;;
-            *supervisor*|*supervise*) icon='S' ;;
-            *worker*) icon='W' ;;
-            *agent*) icon='A' ;;
-            *container*|*docker*) icon='C' ;;
-          esac
+        regtmp="$(mktemp "/tmp/rv_reg_XXXXXX" 2>/dev/null || echo "/tmp/rv_reg_$$")"
+        proc_list_registered > "$regtmp" 2>/dev/null || true
 
-          status_plain="stopped"
-          status_col="$YELLOW"
-          if [ -n "$pid" ] && proc_is_running "$pid"; then
-            status_plain="running"
-            status_col="$GREEN"
-          else
-            if [ -f "$LOG_DIR/${nm}.log" ] && grep -i -E "error|failed|exception" "$LOG_DIR/${nm}.log" >/dev/null 2>&1; then
-              status_plain="error"
-              status_col="$RED"
+        # Root header
+        printf '%s\n' "[v] v-daemon | $SWARM_STATUS | uptime: $uptime_fmt" >> "$tree_tmp"
+
+        # Supervisor entry
+        if grep -i -q -E 'supervisor|supervise' "$regtmp" 2>/dev/null; then
+          grep -i -E 'supervisor|supervise' "$regtmp" 2>/dev/null | while read -r nm pid; do
+            [ -z "$nm" ] && continue
+            status_plain="stopped"; status_col="$YELLOW"
+            if [ -n "$pid" ] && proc_is_running "$pid"; then
+              status_plain="running"; status_col="$GREEN"
+            else
+              if [ -f "$LOG_DIR/${nm}.log" ] && grep -i -E "error|failed|exception" "$LOG_DIR/${nm}.log" >/dev/null 2>&1; then
+                status_plain="error"; status_col="$RED"
+              fi
             fi
-          fi
-
-          printf '%s %s (pid:%s) %s\n' "[$icon]" "$nm" "$pid" "${status_col}${status_plain}${RESET}" >> "$tree_tmp"
-        done
-      else
-        if command -v ps_fallback >/dev/null 2>&1; then
-          PS_OUT=$(ps_fallback pid,args 2>/dev/null || true)
+            printf '%s\n' "  [S] $nm (pid:${pid:-}) ${status_col}${status_plain}${RESET}" >> "$tree_tmp"
+          done
         else
-          PS_OUT=$(ps -eo pid,args 2>/dev/null || true)
+          sup_pid=""
+          [ -f "$SUP_PIDFILE" ] && sup_pid="$(cat \"$SUP_PIDFILE\" 2>/dev/null || true)"
+          if [ -n "$sup_pid" ] && kill -0 "$sup_pid" 2>/dev/null; then status_plain="running"; status_col="$GREEN"; else status_plain="stopped"; status_col="$YELLOW"; fi
+          printf '%s\n' "  [S] supervisor (pid:${sup_pid:-}) ${status_col}${status_plain}${RESET}" >> "$tree_tmp"
         fi
+
+        # Daemon entry
+        if grep -i -q -E '(^| )daemon($| )|v-daemon' "$regtmp" 2>/dev/null; then
+          grep -i -E '(^| )daemon($| )|v-daemon' "$regtmp" 2>/dev/null | while read -r nm pid; do
+            [ -z "$nm" ] && continue
+            status_plain="stopped"; status_col="$YELLOW"
+            if [ -n "$pid" ] && proc_is_running "$pid"; then status_plain="running"; status_col="$GREEN"; else
+              if [ -f "$LOG_DIR/${nm}.log" ] && grep -i -E "error|failed|exception" "$LOG_DIR/${nm}.log" >/dev/null 2>&1; then
+                status_plain="error"; status_col="$RED"
+              fi
+            fi
+            printf '%s\n' "  [M] $nm (pid:${pid:-}) ${status_col}${status_plain}${RESET}" >> "$tree_tmp"
+          done
+        else
+          dm_pid=""
+          [ -f "$DAEMON_PIDFILE" ] && dm_pid="$(cat \"$DAEMON_PIDFILE\" 2>/dev/null || true)"
+          if [ -n "$dm_pid" ] && kill -0 "$dm_pid" 2>/dev/null; then status_plain="running"; status_col="$GREEN"; else status_plain="stopped"; status_col="$YELLOW"; fi
+          printf '%s\n' "  [M] daemon (pid:${dm_pid:-}) ${status_col}${status_plain}${RESET}" >> "$tree_tmp"
+        fi
+
+        # Director entry
+        if grep -i -q 'director' "$regtmp" 2>/dev/null; then
+          grep -i 'director' "$regtmp" 2>/dev/null | while read -r nm pid; do
+            [ -z "$nm" ] && continue
+            status_plain="stopped"; status_col="$YELLOW"
+            if [ -n "$pid" ] && proc_is_running "$pid"; then status_plain="running"; status_col="$GREEN"; fi
+            printf '%s\n' "  [D] $nm (pid:${pid:-}) ${status_col}${status_plain}${RESET}" >> "$tree_tmp"
+          done
+        else
+          dir_pid=""
+          [ -f "$DIRECTOR_PIDFILE" ] && dir_pid="$(cat \"$DIRECTOR_PIDFILE\" 2>/dev/null || true)"
+          if [ -n "$dir_pid" ] && kill -0 "$dir_pid" 2>/dev/null; then status_plain="running"; status_col="$GREEN"; else status_plain="stopped"; status_col="$YELLOW"; fi
+          printf '%s\n' "  [D] director (pid:${dir_pid:-}) ${status_col}${status_plain}${RESET}" >> "$tree_tmp"
+        fi
+
+        # Workers group
+        if grep -i -q 'worker' "$regtmp" 2>/dev/null; then
+          printf '%s\n' "  workers/" >> "$tree_tmp"
+          grep -i 'worker' "$regtmp" 2>/dev/null | while read -r wnm wpid; do
+            [ -z "$wnm" ] && continue
+            status_plain="stopped"; status_col="$YELLOW"
+            if [ -n "$wpid" ] && proc_is_running "$wpid"; then status_plain="running"; status_col="$GREEN"; fi
+            printf '%s\n' "    [W] $wnm (pid:${wpid:-}) ${status_col}${status_plain}${RESET}" >> "$tree_tmp"
+          done
+        fi
+
+        rm -f "$regtmp" 2>/dev/null || true
+
+      else
+        # Fallback: build a minimal tree from ps output
+        printf '%s\n' "[v] v-daemon | $SWARM_STATUS | uptime: $uptime_fmt" >> "$tree_tmp"
+        sup_pid=""
+        [ -f "$SUP_PIDFILE" ] && sup_pid="$(cat \"$SUP_PIDFILE\" 2>/dev/null || true)"
+        if [ -n "$sup_pid" ] && kill -0 "$sup_pid" 2>/dev/null; then status_plain="running"; status_col="$GREEN"; else status_plain="stopped"; status_col="$YELLOW"; fi
+        printf '%s\n' "  [S] supervisor (pid:${sup_pid:-}) ${status_col}${status_plain}${RESET}" >> "$tree_tmp"
+
+        dm_pid=""
+        [ -f "$DAEMON_PIDFILE" ] && dm_pid="$(cat \"$DAEMON_PIDFILE\" 2>/dev/null || true)"
+        if [ -n "$dm_pid" ] && kill -0 "$dm_pid" 2>/dev/null; then status_plain="running"; status_col="$GREEN"; else status_plain="stopped"; status_col="$YELLOW"; fi
+        printf '%s\n' "  [M] daemon (pid:${dm_pid:-}) ${status_col}${status_plain}${RESET}" >> "$tree_tmp"
+
+        dir_pid=""
+        [ -f "$DIRECTOR_PIDFILE" ] && dir_pid="$(cat \"$DIRECTOR_PIDFILE\" 2>/dev/null || true)"
+        if [ -n "$dir_pid" ] && kill -0 "$dir_pid" 2>/dev/null; then status_plain="running"; status_col="$GREEN"; else status_plain="stopped"; status_col="$YELLOW"; fi
+        printf '%s\n' "  [D] director (pid:${dir_pid:-}) ${status_col}${status_plain}${RESET}" >> "$tree_tmp"
+
+        printf '%s\n' "  workers/" >> "$tree_tmp"
         printf '%s\n' "$PS_OUT" | awk 'tolower($0) ~ /worker/ {print $1" "substr($0,index($0,$2))}' | while read -r pid args; do
           nm="worker-${pid}"
-          icon='W'
-          status_plain="running"
-          status_col="$GREEN"
-          if ! kill -0 "$pid" 2>/dev/null; then
-            status_plain="stopped"
-            status_col="$YELLOW"
-          fi
-          printf '%s %s (pid:%s) %s\n' "[$icon]" "$nm" "$pid" "${status_col}${status_plain}${RESET}" >> "$tree_tmp"
+          if kill -0 "$pid" 2>/dev/null; then status_plain="running"; status_col="$GREEN"; else status_plain="stopped"; status_col="$YELLOW"; fi
+          printf '%s\n' "    [W] $nm (pid:${pid:-}) ${status_col}${status_plain}${RESET}" >> "$tree_tmp"
         done
       fi
 
@@ -799,27 +863,32 @@ monitor_foreground() {
 
       # If the swarm was active when the monitor started but is now offline, exit monitor gracefully
       if [ "$INITIAL_ACTIVE" -eq 1 ] && [ "$SWARM_STATUS" = "swarm offline" ]; then
-        printf '%s [SYSTEM] Detected external shutdown; exiting monitor\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >&2
         # Kill tails to allow monitor to exit cleanly
         [ -n "${TAIL_D:-}" ] && kill "$TAIL_D" 2>/dev/null || true
         [ -n "${TAIL_S:-}" ] && kill "$TAIL_S" 2>/dev/null || true
         [ -n "${TAIL_DIR:-}" ] && kill "$TAIL_DIR" 2>/dev/null || true
-        # Clear anchored status line with final state
-        printf '\033[s\033[999B\033[2K\r%s\033[u' "[SYSTEM] swarm offline -- monitor exiting" >&2
+        # Update anchored status line to reflect final state and exit (no log output by default)
+        printf '\033[s\033[999B\033[2K\r%s\033[u' "[SYSTEM] swarm offline" >&2
         break
       fi
 
       # If any of the tail processes exit unexpectedly, log and exit so callers don't hang
       if [ -n "${TAIL_D:-}" ] && ! kill -0 "$TAIL_D" 2>/dev/null; then
-        printf '%s [SYSTEM] daemon log tail stopped; exiting monitor\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >&2
+        if [ "${STREAM_LOGS:-0}" -eq 1 ]; then
+          printf '%s [SYSTEM] daemon log tail stopped; exiting monitor\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >&2
+        fi
         break
       fi
       if [ -n "${TAIL_S:-}" ] && ! kill -0 "$TAIL_S" 2>/dev/null; then
-        printf '%s [SYSTEM] supervisor log tail stopped; exiting monitor\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >&2
+        if [ "${STREAM_LOGS:-0}" -eq 1 ]; then
+          printf '%s [SYSTEM] supervisor log tail stopped; exiting monitor\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >&2
+        fi
         break
       fi
       if [ -n "${TAIL_DIR:-}" ] && ! kill -0 "$TAIL_DIR" 2>/dev/null; then
-        printf '%s [SYSTEM] director log tail stopped; exiting monitor\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >&2
+        if [ "${STREAM_LOGS:-0}" -eq 1 ]; then
+          printf '%s [SYSTEM] director log tail stopped; exiting monitor\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >&2
+        fi
         break
       fi
 
