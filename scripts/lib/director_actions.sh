@@ -19,6 +19,10 @@ fi
 if [ -f "$REPO_ROOT/scripts/lib/logger.sh" ]; then
   . "$REPO_ROOT/scripts/lib/logger.sh"
 fi
+# Load centralized prompts (prompts.sh) for AI prompt reuse
+if [ -f "$REPO_ROOT/scripts/lib/prompts.sh" ]; then
+  . "$REPO_ROOT/scripts/lib/prompts.sh"
+fi
 
 # Local summarizer removed; Copilot CLI is required for autopilot summaries.
 
