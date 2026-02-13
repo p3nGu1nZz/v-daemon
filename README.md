@@ -4,6 +4,8 @@ v-daemon is a small supervisor/daemon and development harness for exercising a D
 
 Status: early development — see TODO.md for planned milestones and tasks.
 
+Scripts are implemented as POSIX sh (/usr/bin/env sh); runtime settings are in ./config/settings.toml.
+
 Requirements
 
 - POSIX shell (sh)

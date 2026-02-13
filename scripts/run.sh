@@ -142,6 +142,55 @@ cleanup_and_exit() {
   exit 130
 }
 
+kill_pid_and_children() {
+  target="$1"
+  if [ -z "$target" ]; then
+    return 1
+  fi
+  # Prefer using proc_kill_tree if available (sourced from process.sh)
+  if command -v proc_kill_tree >/dev/null 2>&1; then
+    proc_kill_tree "$target" || true
+    return 0
+  fi
+
+  # Fallback: best-effort tree kill using ps
+  tmp="$(mktemp "/tmp/kill_tree_XXXXXX")" || tmp="/tmp/kill_tree_$target"
+  echo "$target" >"$tmp"
+  while :; do
+    prev=$(wc -l <"$tmp" 2>/dev/null || echo 0)
+    for pid in $(cat "$tmp"); do
+      for child in $(ps -eo pid,ppid 2>/dev/null | awk -v p="$pid" '$2==p {print $1}'); do
+        if ! grep -q "^$child$" "$tmp" 2>/dev/null; then
+          echo "$child" >>"$tmp"
+        fi
+      done
+    done
+    now=$(wc -l <"$tmp" 2>/dev/null || echo 0)
+    if [ "$now" -eq "$prev" ]; then
+      break
+    fi
+  done
+
+  # kill in reverse order (children first)
+  for pid in $(awk '{a[NR]=$0} END{for(i=NR;i>=1;i--)print a[i]}' "$tmp"); do
+    if kill -0 "$pid" 2>/dev/null; then
+      kill "$pid" 2>/dev/null || true
+    fi
+  done
+  sleep 0.2
+  for pid in $(awk '{a[NR]=$0} END{for(i=NR;i>=1;i--)print a[i]}' "$tmp"); do
+    if kill -0 "$pid" 2>/dev/null; then
+      kill -TERM "$pid" 2>/dev/null || true
+      sleep 0.1
+      if kill -0 "$pid" 2>/dev/null; then
+        kill -9 "$pid" 2>/dev/null || true
+      fi
+    fi
+  done
+  rm -f "$tmp" 2>/dev/null || true
+  return 0
+}
+
 stop_all() {
   MAX_ATTEMPTS=10
   ATTEMPT=0
@@ -153,11 +202,7 @@ stop_all() {
       SUPPID=$(cat "$SUP_PIDFILE" 2>/dev/null || true)
       if [ -n "$SUPPID" ] && kill -0 "$SUPPID" 2>/dev/null; then
         echo "Stopping supervisor (PID $SUPPID)" >&2
-        kill "$SUPPID" 2>/dev/null || true
-        sleep 0.2
-        if kill -0 "$SUPPID" 2>/dev/null; then
-          kill -TERM "$SUPPID" 2>/dev/null || kill -9 "$SUPPID" 2>/dev/null || true
-        fi
+        kill_pid_and_children "$SUPPID" || true
       fi
       rm -f "$SUP_PIDFILE" 2>/dev/null || true
       FOUND=1
@@ -169,17 +214,7 @@ stop_all() {
       for p in $PIDS; do
         if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
           echo "Killing orphaned supervisor process PID $p" >&2
-          kill "$p" 2>/dev/null || true
-          WAITED=0
-          while kill -0 "$p" 2>/dev/null && [ $WAITED -lt 15 ]; do
-            sleep 0.2
-            WAITED=$((WAITED+1))
-          done
-          if kill -0 "$p" 2>/dev/null; then
-            kill -9 "$p" 2>/dev/null || true
-          else
-            echo "Stopped orphaned supervisor process PID $p" >&2
-          fi
+          kill_pid_and_children "$p" || true
           FOUND=1
         fi
       done
@@ -190,11 +225,7 @@ stop_all() {
       DPID=$(cat "$DAEMON_PIDFILE" 2>/dev/null || true)
       if [ -n "$DPID" ] && kill -0 "$DPID" 2>/dev/null; then
         echo "Stopping daemon (PID $DPID)" >&2
-        kill "$DPID" 2>/dev/null || true
-        sleep 0.2
-        if kill -0 "$DPID" 2>/dev/null; then
-          kill -TERM "$DPID" 2>/dev/null || kill -9 "$DPID" 2>/dev/null || true
-        fi
+        kill_pid_and_children "$DPID" || true
       fi
       rm -f "$DAEMON_PIDFILE" 2>/dev/null || true
       FOUND=1
@@ -206,17 +237,7 @@ stop_all() {
       for p in $PIDS; do
         if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
           echo "Killing orphaned daemon process PID $p" >&2
-          kill "$p" 2>/dev/null || true
-          WAITED=0
-          while kill -0 "$p" 2>/dev/null && [ $WAITED -lt 15 ]; do
-            sleep 0.2
-            WAITED=$((WAITED+1))
-          done
-          if kill -0 "$p" 2>/dev/null; then
-            kill -9 "$p" 2>/dev/null || true
-          else
-            echo "Stopped orphaned daemon process PID $p" >&2
-          fi
+          kill_pid_and_children "$p" || true
           FOUND=1
         fi
       done
@@ -227,11 +248,7 @@ stop_all() {
       DPID2=$(cat "$DIRECTOR_PIDFILE" 2>/dev/null || true)
       if [ -n "$DPID2" ] && kill -0 "$DPID2" 2>/dev/null; then
         echo "Stopping director (PID $DPID2)" >&2
-        kill "$DPID2" 2>/dev/null || true
-        sleep 0.2
-        if kill -0 "$DPID2" 2>/dev/null; then
-          kill -TERM "$DPID2" 2>/dev/null || kill -9 "$DPID2" 2>/dev/null || true
-        fi
+        kill_pid_and_children "$DPID2" || true
       fi
       rm -f "$DIRECTOR_PIDFILE" 2>/dev/null || true
       FOUND=1
@@ -243,17 +260,7 @@ stop_all() {
       for p in $PIDS; do
         if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
           echo "Killing orphaned director process PID $p" >&2
-          kill "$p" 2>/dev/null || true
-          WAITED=0
-          while kill -0 "$p" 2>/dev/null && [ $WAITED -lt 15 ]; do
-            sleep 0.2
-            WAITED=$((WAITED+1))
-          done
-          if kill -0 "$p" 2>/dev/null; then
-            kill -9 "$p" 2>/dev/null || true
-          else
-            echo "Stopped orphaned director process PID $p" >&2
-          fi
+          kill_pid_and_children "$p" || true
           FOUND=1
         fi
       done
