@@ -303,14 +303,18 @@ monitor_foreground() {
   DAEMON_RUNNING="not running"
   if [ -f "$SUP_PIDFILE" ]; then
     SUPPID=$(cat "$SUP_PIDFILE" 2>/dev/null || true)
-    if is_pid_for_script "$SUPPID" "$SCRIPT_DIR/lib/supervise.sh"; then
-      SUP_RUNNING="running (PID $SUPPID)"
+    if [ -n "$SUPPID" ]; then
+      if is_pid_for_script "$SUPPID" "$SCRIPT_DIR/lib/supervise.sh" || kill -0 "$SUPPID" 2>/dev/null; then
+        SUP_RUNNING="running (PID $SUPPID)"
+      fi
     fi
   fi
   if [ -f "$DAEMON_PIDFILE" ]; then
     DPID=$(cat "$DAEMON_PIDFILE" 2>/dev/null || true)
-    if is_pid_for_script "$DPID" "$DAEMON"; then
-      DAEMON_RUNNING="running (PID $DPID)"
+    if [ -n "$DPID" ]; then
+      if is_pid_for_script "$DPID" "$DAEMON" || kill -0 "$DPID" 2>/dev/null; then
+        DAEMON_RUNNING="running (PID $DPID)"
+      fi
     fi
   fi
   printf '%s [SYSTEM] Supervisor: %s | Daemon: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$SUP_RUNNING" "$DAEMON_RUNNING" >&2
