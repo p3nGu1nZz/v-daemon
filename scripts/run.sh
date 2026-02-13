@@ -76,7 +76,8 @@ start_supervisor_bg() {
   while [ $waited -lt $TIMEOUT ]; do
     if [ -f "$SUP_PIDFILE" ]; then
       SUPPID=$(cat "$SUP_PIDFILE" 2>/dev/null || true)
-      if [ -n "$SUPPID" ] && is_pid_for_script "$SUPPID" "$SCRIPT_DIR/lib/supervise.sh"; then
+      # Accept if pidfile points to a live process even when cmdline matching fails
+      if [ -n "$SUPPID" ] && ( is_pid_for_script "$SUPPID" "$SCRIPT_DIR/lib/supervise.sh" || kill -0 "$SUPPID" 2>/dev/null ); then
         if grep -q "Supervisor: started" "$SUP_LOGFILE" 2>/dev/null; then
           printf 'Started supervisor (PID %s)\n' "$SUPPID" >&2
           return
@@ -89,7 +90,11 @@ start_supervisor_bg() {
 
   # Fallback: report background PID if supervise didn't populate pidfile
   if [ -n "$SUPPID" ]; then
-    printf 'Started supervisor (PID %s)\n' "$SUPPID" >&2
+    if ( is_pid_for_script "$SUPPID" "$SCRIPT_DIR/lib/supervise.sh" || kill -0 "$SUPPID" 2>/dev/null ); then
+      printf 'Started supervisor (PID %s)\n' "$SUPPID" >&2
+    else
+      printf 'Started supervisor (PID %s) (pidfile present but process not running)\n' "$SUPPID" >&2
+    fi
   else
     printf 'Started supervisor (PID %s) (SUP_PIDFILE not found)\n' "$BG_PID" >&2
     # write bg pidfile for convenience
