@@ -40,7 +40,7 @@ Recent updates (2026-02-13):
 ## Key scripts
 
 - `scripts/setup.sh` — install or prepare dependencies and create `run/` and `logs/`
-- `scripts/check.sh` — run repository checks (read-only by default)
+- `sh scripts/setup.sh --check` — run repository checks (read-only by default)
 - `scripts/run.sh` — start/stop/status the supervisor and daemon
 
 ## Requirements
@@ -888,7 +888,7 @@ Recent updates (2026-02-13):
 ## Key scripts
 
 - `scripts/setup.sh` — install or prepare dependencies and create `run/` and `logs/`
-- `scripts/check.sh` — run repository checks (read-only by default)
+- `sh scripts/setup.sh --check` — run repository checks (read-only by default)
 - `scripts/run.sh` — start/stop/status the supervisor and daemon
 
 ## Requirements

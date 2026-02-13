@@ -1,12 +1,13 @@
 #!/usr/bin/env sh
-# Director agent: coordinates worker agents (minimal stub)
+# Director agent: HFSM-based director coordinating worker skills (stubbed states)
 set -eu
 
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   cat <<'USAGE'
 Usage: sh scripts/lib/director.sh
 
-Director agent stub: writes PID to run/v-director.pid and heartbeats to ./logs/director.log
+Director HFSM stub: runs a sequence of states and invokes skills when available.
+States (simple cycle): load_actions -> summarize -> next_steps -> select_task -> patch_repo -> merge_up -> sleep -> summarize
 USAGE
   exit 0
 fi
@@ -16,6 +17,8 @@ if [ -f "$REPO_ROOT/scripts/lib/config.sh" ]; then
   . "$REPO_ROOT/scripts/lib/config.sh"
   config_init "$REPO_ROOT"
 fi
+# Ensure RUN_DIR falls back to repo run/ if not set by config
+RUN_DIR="${RUN_DIR:-$REPO_ROOT/run}"
 PIDFILE="${RUN_DIR}/v-director.pid"
 LOCKDIR="${RUN_DIR}/v-director.lock"
 SCRIPT_NAME="$(basename "$0")"
@@ -29,19 +32,15 @@ acquire_lock() {
     fi
     OWNER_PID="$(cat "$LOCKDIR/pid" 2>/dev/null || true)"
     if [ -n "$OWNER_PID" ] && kill -0 "$OWNER_PID" 2>/dev/null; then
-      # Check if the owner PID actually appears to be the director; if not, treat the lock as stale
       cmdline="$(ps -p "$OWNER_PID" -o args= 2>/dev/null || true)"
       if [ -n "$cmdline" ] && echo "$cmdline" | grep -F -q "$SCRIPT_NAME"; then
-        # another active owner that looks like the director
         return 1
       else
-        # Owner pid is some other process (pid reused) — remove stale lock and retry
         rm -rf "$LOCKDIR" 2>/dev/null || true
         sleep 0.1
         continue
       fi
     fi
-    # stale lock, remove and retry
     rm -rf "$LOCKDIR" 2>/dev/null || true
     sleep 0.1
   done
@@ -59,7 +58,6 @@ if [ -f "$PIDFILE" ]; then
     echo "Director already running (PID $EXIST_PID)" >&2
     exit 0
   else
-    # stale pidfile
     rm -f "$PIDFILE" 2>/dev/null || true
   fi
 fi
@@ -90,28 +88,109 @@ DEV_AUDITS_DIR="$REPO_ROOT/audits"
 mkdir -p "$DEV_AUDITS_DIR"
 LOGFILE="${REPO_ROOT}/logs/director.log"
 
-echo "$(date +'%Y-%m-%dT%H:%M:%S%z') [AGENT-DIRECTOR] director agent starting (PID $$)" >>"$LOGFILE"
-# Source director actions (prefer fixed copy if present) and run autopilot summary asynchronously
-if [ -f "$SCRIPT_DIR/actions.sh" ]; then
-  . "$SCRIPT_DIR/actions.sh"
-fi
-# Start a first autopilot summary in background if action scripts were sourced
-if [ -f "$SCRIPT_DIR/actions.sh" ]; then
-  run_autopilot_summary 2>/dev/null &
-fi
+echo "$(date +'%Y-%m-%dT%H:%M:%S%z') [AGENT-DIRECTOR] director HFSM starting (PID $$)" >>"$LOGFILE"
 
-# Main loop: emit heartbeat and placeholder for coordination logic
-while true; do
-  heartbeat_ts=$(date +'%Y-%m-%dT%H:%M:%S%z')
-  echo "$heartbeat_ts [AGENT-DIRECTOR] heartbeat" >>"$LOGFILE"
-  # Emit structured JSONL heartbeat for auditing
-  printf '%s\n' "{\"ts\":\"$heartbeat_ts\",\"event\":\"heartbeat\",\"role\":\"director\",\"pid\":$$}" >>"$DEV_AUDITS_DIR/director-heartbeats.jsonl" || true
-  # Attempt autopilot summary in background; actions.sh will acquire its own lock
+# Helper to emit audit+log
+log() {
+  ts="$(date +'%Y-%m-%dT%H:%M:%S%z')"
+  msg="$1"
+  echo "$ts [AGENT-DIRECTOR] $msg" >>"$LOGFILE"
+  printf '%s\n' "{\"ts\":\"$ts\",\"event\":\"$msg\",\"role\":\"director\",\"pid\":$$}" >>"$DEV_AUDITS_DIR/director-heartbeats.jsonl" || true
+}
+
+# HFSM state functions: each echoes the next state name
+state_load_actions() {
+  log "state=load_actions: loading actions.sh if present"
   if [ -f "$SCRIPT_DIR/actions.sh" ]; then
-    ( run_autopilot_summary ) >/dev/null 2>&1 &
+    # shellcheck source=/dev/null
+    . "$SCRIPT_DIR/actions.sh"
+    log "sourced actions.sh"
+  else
+    log "actions.sh not present; using mock actions"
   fi
+  echo "summarize"
+}
 
-  # Director coordination placeholder: spawning workers, RPC/task queue to be implemented in follow-up tasks
-  # Current behavior: emit heartbeat and attempt autopilot summaries (see actions.sh)
-  sleep "${DIRECTOR_INTERVAL_SECONDS:-60}"
+state_summarize() {
+  log "state=summarize"
+  if command -v run_autopilot_summary >/dev/null 2>&1; then
+    log "invoking run_autopilot_summary"
+    ( run_autopilot_summary ) >/dev/null 2>&1 || log "run_autopilot_summary failed"
+  else
+    log "mock summarize: no run_autopilot_summary available"
+  fi
+  echo "next_steps"
+}
+
+state_next_steps() {
+  log "state=next_steps"
+  if [ -f "$REPO_ROOT/scripts/skills/next-steps.sh" ]; then
+    log "running skills/next-steps.sh"
+    sh "$REPO_ROOT/scripts/skills/next-steps.sh" || log "next-steps skill failed"
+  else
+    log "mock next-steps"
+  fi
+  echo "select_task"
+}
+
+state_select_task() {
+  log "state=select_task"
+  # Placeholder selection logic: always attempt patch_repo then merge_up in this stub
+  echo "patch_repo"
+}
+
+state_patch_repo() {
+  log "state=patch_repo"
+  if [ -f "$REPO_ROOT/scripts/skills/patch-repo.sh" ]; then
+    log "invoking skills/patch-repo.sh"
+    sh "$REPO_ROOT/scripts/skills/patch-repo.sh" || log "patch-repo skill returned error"
+  else
+    log "mock patch-repo: script not found"
+  fi
+  echo "merge_up"
+}
+
+state_merge_up() {
+  log "state=merge_up"
+  if [ -f "$REPO_ROOT/scripts/skills/merge-up.sh" ]; then
+    log "invoking skills/merge-up.sh"
+    sh "$REPO_ROOT/scripts/skills/merge-up.sh" || log "merge-up skill returned error"
+  else
+    log "mock merge-up: script not found"
+  fi
+  echo "sleep"
+}
+
+state_sleep() {
+  interval="${DIRECTOR_INTERVAL_SECONDS:-60}"
+  log "state=sleep (sleeping $interval seconds)"
+  sleep "$interval"
+  echo "summarize"
+}
+
+# Initial HFSM state
+CURRENT_STATE="load_actions"
+
+while true; do
+  # heartbeat
+  log "heartbeat"
+  case "$CURRENT_STATE" in
+    load_actions)
+      CURRENT_STATE="$(state_load_actions)" ;;
+    summarize)
+      CURRENT_STATE="$(state_summarize)" ;;
+    next_steps)
+      CURRENT_STATE="$(state_next_steps)" ;;
+    select_task)
+      CURRENT_STATE="$(state_select_task)" ;;
+    patch_repo)
+      CURRENT_STATE="$(state_patch_repo)" ;;
+    merge_up)
+      CURRENT_STATE="$(state_merge_up)" ;;
+    sleep)
+      CURRENT_STATE="$(state_sleep)" ;;
+    *)
+      log "unknown state '$CURRENT_STATE', resetting to summarize"
+      CURRENT_STATE="summarize" ;;
+  esac
 done
