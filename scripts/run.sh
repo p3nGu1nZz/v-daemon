@@ -315,6 +315,19 @@ monitor_foreground() {
   # Ensure Ctrl-C triggers clean shutdown of supervisor and daemon
   trap 'cleanup_and_exit' INT TERM
 
+  # ANSI color codes when writing to a terminal
+  if [ -t 2 ]; then
+    RED='\033[31m'
+    GREEN='\033[32m'
+    YELLOW='\033[33m'
+    RESET='\033[0m'
+  else
+    RED=''
+    GREEN=''
+    YELLOW=''
+    RESET=''
+  fi
+
   # Print an initial system status line (before starting tails to avoid interleaving)
   SUP_RUNNING="not running"
   DAEMON_RUNNING="not running"
@@ -464,11 +477,90 @@ monitor_foreground() {
       fi
 
       status_line="[SYSTEM] Uptime: $uptime_fmt | errors: $ERRORS | $SWARM_STATUS"
-      # Only redraw anchored status when it changes to reduce flicker
-      if [ "${status_line}" != "${LAST_STATUS_LINE}" ]; then
-        printf '\033[s\033[999B\033[2K\r%s\033[u' "$status_line" >&2
-        LAST_STATUS_LINE="$status_line"
+      # Build a tree of registered workers and display it above the anchored status line
+      tree_tmp="$(mktemp "/tmp/swarm_tree_XXXXXX" 2>/dev/null || echo "/tmp/swarm_tree_$$")"
+      : > "$tree_tmp"
+
+      if command -v proc_list_registered >/dev/null 2>&1; then
+        proc_list_registered | while read -r nm pid; do
+          [ -z "$nm" ] && continue
+          ln=$(printf '%s' "$nm" | tr 'A-Z' 'a-z')
+          icon='*'
+          case "$ln" in
+            *director*) icon='D' ;;
+            *daemon*) icon='M' ;;
+            *supervisor*|*supervise*) icon='S' ;;
+            *worker*) icon='W' ;;
+            *agent*) icon='A' ;;
+            *container*|*docker*) icon='C' ;;
+          esac
+
+          status_plain="stopped"
+          status_col="$YELLOW"
+          if [ -n "$pid" ] && proc_is_running "$pid"; then
+            status_plain="running"
+            status_col="$GREEN"
+          else
+            if [ -f "$LOG_DIR/${nm}.log" ] && grep -i -E "error|failed|exception" "$LOG_DIR/${nm}.log" >/dev/null 2>&1; then
+              status_plain="error"
+              status_col="$RED"
+            fi
+          fi
+
+          printf '%s %s (pid:%s) %s\n' "[$icon]" "$nm" "$pid" "${status_col}${status_plain}${RESET}" >> "$tree_tmp"
+        done
+      else
+        if command -v ps_fallback >/dev/null 2>&1; then
+          PS_OUT=$(ps_fallback pid,args 2>/dev/null || true)
+        else
+          PS_OUT=$(ps -eo pid,args 2>/dev/null || true)
+        fi
+        printf '%s\n' "$PS_OUT" | awk 'tolower($0) ~ /worker/ {print $1" "substr($0,index($0,$2))}' | while read -r pid args; do
+          nm="worker-${pid}"
+          icon='W'
+          status_plain="running"
+          status_col="$GREEN"
+          if ! kill -0 "$pid" 2>/dev/null; then
+            status_plain="stopped"
+            status_col="$YELLOW"
+          fi
+          printf '%s %s (pid:%s) %s\n' "[$icon]" "$nm" "$pid" "${status_col}${status_plain}${RESET}" >> "$tree_tmp"
+        done
       fi
+
+      tree_count=$(wc -l <"$tree_tmp" 2>/dev/null || echo 0)
+      if [ "$tree_count" -eq 0 ]; then
+        # Only redraw anchored status when it changes to reduce flicker
+        if [ "${status_line}" != "${LAST_STATUS_LINE}" ]; then
+          printf '\033[s\033[999B\033[2K\r%s\033[u' "$status_line" >&2
+          LAST_STATUS_LINE="$status_line"
+        fi
+      else
+        # Only redraw when status or tree count changes
+        if [ "${status_line}" != "${LAST_STATUS_LINE}" ] || [ "$tree_count" != "${LAST_TREE_COUNT:-}" ]; then
+          # move to bottom and up by tree_count lines to start writing
+          printf '\033[s\033[999B' >&2
+          if [ "$tree_count" -gt 0 ]; then
+            printf '\033[%dA' "$tree_count" >&2
+          fi
+          n=0
+          total=$(wc -l <"$tree_tmp" 2>/dev/null || echo 0)
+          while IFS= read -r l; do
+            n=$((n+1))
+            if [ "$n" -lt "$total" ]; then
+              prefix='|- '
+            else
+              prefix='`- '
+            fi
+            printf '\033[2K\r%s%s\n' "$prefix" "$l" >&2
+          done < "$tree_tmp"
+          # print final status line (no newline) and restore cursor
+          printf '\033[2K\r%s\033[u' "$status_line" >&2
+          LAST_STATUS_LINE="$status_line"
+          LAST_TREE_COUNT="$tree_count"
+        fi
+      fi
+      rm -f "$tree_tmp" 2>/dev/null || true
 
       # If the swarm was active when the monitor started but is now offline, exit monitor gracefully
       if [ "$INITIAL_ACTIVE" -eq 1 ] && [ "$SWARM_STATUS" = "swarm offline" ]; then
