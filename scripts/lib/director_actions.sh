@@ -243,6 +243,17 @@ EOF
       excerpt=$(printf '%s' "$excerpt_raw" | cut -c 1-250)
       printf '%s [AGENT-DIRECTOR] summary excerpt: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$excerpt" >>"$LOGFILE" 2>/dev/null || true
       printf '%s [AGENT-DIRECTOR] summary excerpt: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$excerpt" || true
+
+      # After a successful sanitized summary, attempt to generate a prioritized itemized plan using Copilot
+      if [ -s "$summary_file" ]; then
+        printf '%s [AGENT-DIRECTOR] Autopilot plan: starting (using sanitized summary)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
+        # run_autopilot_plan expects: out_dir, summary_file, context_file, combined_prompt
+        if run_autopilot_plan "$out_dir" "$summary_file" "$context_file" "$combined_prompt"; then
+          printf '%s [AGENT-DIRECTOR] Autopilot plan: generation completed for %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" >>"$LOGFILE" 2>/dev/null || true
+        else
+          printf '%s [AGENT-DIRECTOR] Autopilot plan: generation failed for %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" >>"$LOGFILE" 2>/dev/null || true
+        fi
+      fi
     else
       # Sanitization removed everything; keep raw for debugging and write a clear message into summary_file
       printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot output contained only artifacts and was not suitable; raw output saved to %s/copilot_raw.txt\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" >>"$LOGFILE" 2>/dev/null || true
@@ -257,5 +268,87 @@ EOF
   cleanup_tmp || true
   cleanup_lock
   trap - EXIT INT TERM
+  return 0
+}
+
+
+# Generate a prioritized itemized plan (todo list) from the sanitized summary + repo snapshot using the copilot CLI.
+# Parameters: out_dir, summary_file, context_file, combined_prompt
+run_autopilot_plan() {
+  out_dir="$1"
+  summary_file="$2"
+  context_file="$3"
+  combined_prompt="$4"
+
+  plan_ts="$(date +%Y%m%dT%H%M%S)"
+  plan_in="$out_dir/plan_input.txt"
+  plan_raw="$out_dir/plan_raw.txt"
+  plan_err="$out_dir/copilot_plan.err"
+  plan_sanitized="$out_dir/plan_sanitized.txt"
+  plan_tasks="$out_dir/tasks.txt"
+  plan_prompt_file=$(mktemp "/tmp/director_plan_prompt_${plan_ts}.XXXXXX") || plan_prompt_file="$out_dir/plan_prompt.txt"
+
+  cat > "$plan_prompt_file" <<'PLANPROMPT'
+You are an expert project manager and code reviewer.
+Given the repository summary below and the provided REPO SNAPSHOT, produce an itemized, prioritized list of clear, actionable todo items for maintainers to work on next.
+- Output as a plain list where each line begins with "- " and is a concise task title (5-12 words), optionally followed by a short 1-sentence description after a colon.
+- Prioritize tasks by impact and ease of implementation.
+- Limit to 12 items.
+- Do not include simulated command output, permission errors, "Asked user", or tool traces.
+- Use only the provided summary and snapshot; do not invent execution traces or simulate running scripts.
+Return only the bullet list.
+PLANPROMPT
+
+  # Build plan input (context + summary + plan instructions)
+  cat "$context_file" "$summary_file" "$plan_prompt_file" > "$plan_in" 2>/dev/null || true
+
+  if command -v copilot >/dev/null 2>&1; then
+    COPILOT_HELP=$(copilot --help 2>&1 || true)
+    COPILOT_OPTS=""
+    if echo "$COPILOT_HELP" | grep -q -- '--model'; then
+      COPILOT_OPTS="--model gpt-5-mini"
+    elif echo "$COPILOT_HELP" | grep -q -- '--engine'; then
+      COPILOT_OPTS="--engine gpt-5-mini"
+    fi
+    COPILOT_ENV="env COPILOT_MODEL=gpt-5-mini"
+
+    MAX_ATTEMPTS=2
+    ATTEMPT=1
+    plan_usable=0
+    while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+      printf '%s [AGENT-DIRECTOR] Autopilot plan: copilot attempt %d/%d\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" "$MAX_ATTEMPTS" >>"$LOGFILE" 2>/dev/null || true
+      if cat "$plan_in" | $COPILOT_ENV copilot $COPILOT_OPTS >"$plan_raw" 2>"$plan_err"; then
+        :
+      fi
+      if [ -s "$plan_raw" ]; then
+        # Keep only obvious bullet or numbered lines and normalize numbering to bullets
+        grep -E '^\s*-\s+|^\s*[0-9]+\.' "$plan_raw" > "$plan_sanitized" 2>/dev/null || cp "$plan_raw" "$plan_sanitized" 2>/dev/null || true
+        sed 's/^[[:space:]]*[0-9][0-9]*\.\s*/- /' "$plan_sanitized" > "$plan_tasks" 2>/dev/null || cp "$plan_sanitized" "$plan_tasks" 2>/dev/null || true
+        plan_usable=1
+        break
+      fi
+      ATTEMPT=$((ATTEMPT+1))
+      sleep 1
+    done
+
+    if [ $plan_usable -ne 1 ]; then
+      printf '%s [AGENT-DIRECTOR] Autopilot plan: copilot did not produce a usable plan after %d attempts; raw saved to %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$MAX_ATTEMPTS" "$plan_raw" >>"$LOGFILE" 2>/dev/null || true
+      return 1
+    fi
+
+    printf '%s [AGENT-DIRECTOR] Autopilot plan: plan saved to %s (tasks: %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" "$plan_tasks" >>"$LOGFILE" 2>/dev/null || true
+
+    # Print a brief excerpt of the tasks to console for visibility
+    if [ -s "$plan_tasks" ]; then
+      printf '%s [AGENT-DIRECTOR] plan excerpt:\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
+      sed -n '1,12p' "$plan_tasks" >>"$LOGFILE" 2>/dev/null || true
+      sed -n '1,12p' "$plan_tasks" || true
+    fi
+  else
+    printf '%s [AGENT-DIRECTOR] Autopilot plan: copilot CLI not found; skipping plan\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
+    return 1
+  fi
+
+  rm -f "$plan_prompt_file" "$plan_in" 2>/dev/null || true
   return 0
 }
