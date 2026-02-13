@@ -210,18 +210,15 @@ fi
           # do NOT fallback to local summarizer; preserve raw and sanitized outputs for diagnostics
           mv "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || cp "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || true
           mv "$cleaned" "$out_dir/copilot_sanitized.txt" 2>/dev/null || cp "$cleaned" "$out_dir/copilot_sanitized.txt" 2>/dev/null || true
-          printf '%s [AGENT-DIRECTOR] Autopilot summary: sanitized copilot output saved to %s/copilot_sanitized.txt and raw to %s/copilot_raw.txt\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" "$out_dir" || true
-          printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced sanitized output after %d attempts but will NOT fallback; inspect %s/copilot_sanitized.txt
-' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$MAX_ATTEMPTS" "$out_dir" >>"$LOGFILE" 2>/dev/null || true
+          printf '%s [AGENT-DIRECTOR] Autopilot summary: sanitized copilot output saved to %s/copilot_sanitized.txt and raw to %s/copilot_raw.txt\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" "$out_dir" >>"$LOGFILE" 2>/dev/null || true
+          printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced sanitized output after %d attempts but will NOT fallback; inspect %s/copilot_sanitized.txt\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$MAX_ATTEMPTS" "$out_dir" >>"$LOGFILE" 2>/dev/null || true
         else
           rm -f "$cleaned" 2>/dev/null || true
           mv "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || cp "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || true
-          printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced only artifacts after %d attempts; no usable summary
-' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$MAX_ATTEMPTS" >>"$LOGFILE" 2>/dev/null || true
+          printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced only artifacts after %d attempts; no usable summary\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$MAX_ATTEMPTS" >>"$LOGFILE" 2>/dev/null || true
         fi
       else
-        printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot failed to produce any output after %d attempts
-' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$MAX_ATTEMPTS" >>"$LOGFILE" 2>/dev/null || true
+        printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot failed to produce any output after %d attempts\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$MAX_ATTEMPTS" >>"$LOGFILE" 2>/dev/null || true
       fi
 
       # After saving diagnostics, abort without local fallback
@@ -276,7 +273,6 @@ fi
       printf '%s [AGENT-DIRECTOR] summary head (first 6 lines):\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
 
       awk 'length($0)>200 {print substr($0,1,197) "..."; next} {print}' "$summary_file" | sed -n '1,6p' >>"$LOGFILE" 2>/dev/null || true
-      awk 'length($0)>200 {print substr($0,1,197) "..."; next} {print}' "$summary_file" | sed -n '1,6p' || true
 
       # After a successful sanitized summary, attempt to generate a prioritized itemized plan using Copilot
       if [ -s "$summary_file" ]; then
@@ -395,8 +391,6 @@ fi
       printf '%s [AGENT-DIRECTOR] plan excerpt:\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
       # Truncate lines for logfile (first 12)
       awk 'length($0)>200 {print substr($0,1,197) "..."; next} {print}' "$plan_tasks" | sed -n '1,12p' >>"$LOGFILE" 2>/dev/null || true
-      # Truncate lines for console (first 12)
-      awk 'length($0)>200 {print substr($0,1,197) "..."; next} {print}' "$plan_tasks" | sed -n '1,12p' || true
     fi
   else
     printf '%s [AGENT-DIRECTOR] Autopilot plan: copilot CLI not found; skipping plan\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
