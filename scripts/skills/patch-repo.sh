@@ -71,7 +71,14 @@ if git diff --cached --quiet; then
   git --no-pager status >"$OUTDIR/status.txt" || true
   commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
   branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-  cat >"$OUTDIR/report.json" <<JSON
+  # Precompute args string and JSON-friendly pushed boolean to avoid nested command substitutions
+args_string="$(printf '%s ' "$@" | sed -e 's/"/\"/g')"
+if [ "$pushed" = true ]; then
+  pushed_json=true
+else
+  pushed_json=false
+fi
+cat >"$OUTDIR/report.json" <<JSON
 {
   "timestamp": "$TIMESTAMP",
   "script": "scripts/skills/patch-repo.sh",
@@ -167,7 +174,7 @@ cat >"$OUTDIR/report.json" <<JSON
   "exit_code": $exit_code,
   "commit": "$commit",
   "branch": "$branch",
-  "pushed": $( [ "$pushed" = true ] && echo true || echo false ),
+  "pushed": $pushed_json,
   "stdout": "$STDOUT_FILE",
   "stderr": "$STDERR_FILE",
   "status_file": "$OUTDIR/status.txt"
