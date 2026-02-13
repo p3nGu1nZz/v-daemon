@@ -10,6 +10,7 @@ SUP_PIDFILE="/tmp/v-daemon-supervisor.pid"
 mkdir -p "$REPO_ROOT/logs"
 LOGFILE="${REPO_ROOT}/logs/daemon.log"
 SUP_LOGFILE="${REPO_ROOT}/logs/supervisor.log"
+DIRECTOR_LOG="${REPO_ROOT}/logs/director.log"
 CHECK_INTERVAL="${CHECK_INTERVAL:-30}"
 
 # Helper: verify that a PID corresponds to a running process whose args contain the expected script path
@@ -121,6 +122,7 @@ cleanup_and_exit() {
   # Kill any tails streaming logs
   [ -n "${TAIL_D:-}" ] && kill "$TAIL_D" 2>/dev/null || true
   [ -n "${TAIL_S:-}" ] && kill "$TAIL_S" 2>/dev/null || true
+  [ -n "${TAIL_DIR:-}" ] && kill "$TAIL_DIR" 2>/dev/null || true
 
   # Try to stop supervisor/daemon processes and any orphans
   stop_all
@@ -229,6 +231,9 @@ monitor_foreground() {
   TAIL_D=$!
   tail -n 0 -F "$SUP_LOGFILE" 2>/dev/null | sed '/\[SUPERVISOR\]/! s/^/[SUPERVISOR] /' &
   TAIL_S=$!
+  touch "$DIRECTOR_LOG"
+  tail -n 0 -F "$DIRECTOR_LOG" 2>/dev/null &
+  TAIL_DIR=$!
 
   # Ensure Ctrl-C triggers clean shutdown of supervisor and daemon
   trap 'cleanup_and_exit' INT TERM
@@ -256,7 +261,7 @@ monitor_foreground() {
 
 case "${1:-}" in
   start)
-    if [ -f "$SUP_PIDFILE" ] && kill -0 "$(cat "$SUP_PIDFILE")" 2>/dev/null; then
+    if [ -f "$SUP_PIDFILE" ] && is_pid_for_script "$(cat "$SUP_PIDFILE")" "$SCRIPT_DIR/lib/supervise.sh"; then
       echo "Supervisor already running (PID $(cat "$SUP_PIDFILE"))"
       exit 0
     fi
@@ -283,12 +288,12 @@ case "${1:-}" in
     fi
     ;;
   status)
-    if [ -f "$SUP_PIDFILE" ] && kill -0 "$(cat "$SUP_PIDFILE")" 2>/dev/null; then
+    if [ -f "$SUP_PIDFILE" ] && is_pid_for_script "$(cat "$SUP_PIDFILE")" "$SCRIPT_DIR/lib/supervise.sh"; then
       echo "Supervisor running (PID $(cat "$SUP_PIDFILE"))"
     else
       echo "Supervisor not running"
     fi
-    if [ -f "$DAEMON_PIDFILE" ] && kill -0 "$(cat "$DAEMON_PIDFILE")" 2>/dev/null; then
+    if [ -f "$DAEMON_PIDFILE" ] && is_pid_for_script "$(cat "$DAEMON_PIDFILE")" "$DAEMON"; then
       echo "Daemon running (PID $(cat "$DAEMON_PIDFILE"))"
     else
       echo "Daemon not running"

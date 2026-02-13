@@ -42,8 +42,13 @@ acquire_lock() {
 if [ -f "$PIDFILE" ]; then
   EXIST_PID=$(cat "$PIDFILE" 2>/dev/null || true)
   if [ -n "$EXIST_PID" ] && kill -0 "$EXIST_PID" 2>/dev/null; then
-    echo "Daemon already running (PID $EXIST_PID)" >&2
-    exit 0
+    # if the pidfile points to this process, proceed; otherwise another daemon is running
+    if [ "$EXIST_PID" = "$$" ]; then
+      :
+    else
+      echo "Daemon already running (PID $EXIST_PID)" >&2
+      exit 0
+    fi
   else
     # stale pidfile
     rm -f "$PIDFILE" 2>/dev/null || true
@@ -106,76 +111,56 @@ log() {
   fi
 }
 
-while true; do
-  # Ensure director process is running; adopt existing or start a new one
+# Ensure director process is running; function to adopt or start the director
+ensure_director_running() {
   if [ -f "$DIRECTOR_PIDFILE" ]; then
     DP_EXIST=$(cat "$DIRECTOR_PIDFILE" 2>/dev/null || true)
     if is_pid_for_script "$DP_EXIST" "$DIRECTOR"; then
-      :
-    else
-      rm -f "$DIRECTOR_PIDFILE" 2>/dev/null || true
-      EXIST="$(ps -eo pid,args | awk -v pat=\"$DIRECTOR\" '$0 ~ pat {print $1}')"
-      for p in $EXIST; do
-        if [ -n "$p" ] && is_pid_for_script "$p" "$DIRECTOR"; then
-          echo "$p" >"$DIRECTOR_PIDFILE" 2>/dev/null || true
-          log "[DAEMON] Director: adopted existing director (PID $p)"
-          break
-        fi
-      done
-      if [ ! -f "$DIRECTOR_PIDFILE" ]; then
-        log "[DAEMON] Director: starting director (initiated by daemon)"
-        nohup sh "$DIRECTOR" >>"$DIRECTOR_LOG" 2>&1 &
-        D_START=$!
-        WAITED=0
-        while [ $WAITED -lt 25 ]; do
-          if [ -f "$DIRECTOR_PIDFILE" ]; then
-            DP_EXIST=$(cat "$DIRECTOR_PIDFILE" 2>/dev/null || true)
-            if is_pid_for_script "$DP_EXIST" "$DIRECTOR"; then
-              log "[DAEMON] Director: started (PID $DP_EXIST)"
-              break
-            fi
-          fi
-          sleep 0.2
-          WAITED=$((WAITED+1))
-        done
-        if [ ! -f "$DIRECTOR_PIDFILE" ]; then
-          echo "$D_START" >"$DIRECTOR_PIDFILE" 2>/dev/null || true
-          log "[DAEMON] Director: started (PID $D_START) (pidfile created by daemon)"
-        fi
-      fi
+      return 0
     fi
-  else
-    EXIST="$(ps -eo pid,args | awk -v pat=\"$DIRECTOR\" '$0 ~ pat {print $1}')"
-    if [ -n "$EXIST" ]; then
-      for p in $EXIST; do
-        if [ -n "$p" ] && is_pid_for_script "$p" "$DIRECTOR"; then
-          echo "$p" >"$DIRECTOR_PIDFILE" 2>/dev/null || true
-          log "[DAEMON] Director: adopted existing director (PID $p)"
-          break
-        fi
-      done
-    else
-      log "[DAEMON] Director: starting director (no pidfile)"
-      nohup sh "$DIRECTOR" >>"$DIRECTOR_LOG" 2>&1 &
-      D_START=$!
-      WAITED=0
-      while [ $WAITED -lt 25 ]; do
-        if [ -f "$DIRECTOR_PIDFILE" ]; then
-          DP_EXIST=$(cat "$DIRECTOR_PIDFILE" 2>/dev/null || true)
-          if is_pid_for_script "$DP_EXIST" "$DIRECTOR"; then
-            log "[DAEMON] Director: started (PID $DP_EXIST)"
-            break
-          fi
-        fi
-        sleep 0.2
-        WAITED=$((WAITED+1))
-      done
-      if [ ! -f "$DIRECTOR_PIDFILE" ]; then
-        echo "$D_START" >"$DIRECTOR_PIDFILE" 2>/dev/null || true
-        log "[DAEMON] Director: started (PID $D_START) (pidfile created by daemon)"
-      fi
-    fi
+    rm -f "$DIRECTOR_PIDFILE" 2>/dev/null || true
   fi
+
+  # Try to adopt any running director matching the script
+  EXIST="$(ps -eo pid,args | awk -v pat=\"$DIRECTOR\" '$0 ~ pat {print $1}')"
+  for p in $EXIST; do
+    if [ -n "$p" ] && is_pid_for_script "$p" "$DIRECTOR"; then
+      echo "$p" >"$DIRECTOR_PIDFILE" 2>/dev/null || true
+      log "[DAEMON] director agent adopted (PID $p)"
+      return 0
+    fi
+  done
+
+  # Start the director and wait briefly for it to create its pidfile
+  log "[DAEMON] starting director agent (initiated by daemon)"
+  nohup sh "$DIRECTOR" >>"$DIRECTOR_LOG" 2>&1 &
+  D_START=$!
+  WAITED=0
+  while [ $WAITED -lt 25 ]; do
+    if [ -f "$DIRECTOR_PIDFILE" ]; then
+      DP_EXIST=$(cat "$DIRECTOR_PIDFILE" 2>/dev/null || true)
+      if is_pid_for_script "$DP_EXIST" "$DIRECTOR"; then
+        log "[DAEMON] director agent started (PID $DP_EXIST)"
+        return 0
+      fi
+    fi
+    sleep 0.2
+    WAITED=$((WAITED+1))
+  done
+
+  if [ ! -f "$DIRECTOR_PIDFILE" ]; then
+    echo "$D_START" >"$DIRECTOR_PIDFILE" 2>/dev/null || true
+    log "[DAEMON] director agent started (PID $D_START) (pidfile created by daemon)"
+  fi
+  return 0
+}
+
+# Ensure director is started immediately on daemon startup
+ensure_director_running
+
+while true; do
+  # Periodically ensure director is running
+  ensure_director_running
 
   # Heartbeat: include director status so monitor shows director health
   DPID=""
@@ -189,5 +174,5 @@ while true; do
   fi
   printf '%s [HEARTBEAT] daemon running on PID %s | %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$$" "$DIR_STATUS" >>"$LOGFILE"
   # TODO: insert build / test / self-update steps here
-  sleep 60
+  sleep 20
 done

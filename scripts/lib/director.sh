@@ -73,11 +73,11 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 mkdir -p "$REPO_ROOT/logs"
 LOGFILE="${REPO_ROOT}/logs/director.log"
 
-printf '%s [DIRECTOR] Director: started (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$$" >>"$LOGFILE"
+printf '%s [AGENT-DIRECTOR] director agent starting (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$$" >>"$LOGFILE"
 
 # Main loop: emit heartbeat and placeholder for coordination logic
 while true; do
-  printf '%s [DIRECTOR] heartbeat\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE"
+  printf '%s [AGENT-DIRECTOR] heartbeat\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE"
   # TODO: implement director coordination (spawn workers, RPC, task queue)
   sleep 60
 done
