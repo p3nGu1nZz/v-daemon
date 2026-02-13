@@ -91,6 +91,9 @@ cat >"$out/review.json" <<EOF
 }
 EOF
 
+# create compat summary.json
+cp "$out/review.json" "$out/summary.json" 2>/dev/null || true
+
 # human summary
 {
   echo "Repository review for $(basename "$PWD") at $timestamp"
