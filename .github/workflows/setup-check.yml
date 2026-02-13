@@ -1,0 +1,11 @@
+name: Setup Check
+
+on: [push, pull_request]
+
+jobs:
+  setup-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run setup checks
+        run: sh scripts/setup.sh --check
