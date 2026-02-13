@@ -370,7 +370,7 @@ main() {
 }
 
 # Handle 'build' subcommand to compile docs and render PDF
-if [ "${1:-}" = "build" ]; then
+if [ "${1:-}" = "build" ] || [ "${1:-}" = "--build" ]; then
   shift
   mkdir -p "$OUT" "$RAW"
   capture_git_metadata
@@ -392,6 +392,20 @@ if [ "${1:-}" = "build" ]; then
   else
     echo "pandoc not found; PDF generation skipped" >"$OUT/guide/pandoc.err"
   fi
+
+  # Also copy compiled guide into docs with project-specific filenames
+  mkdir -p docs
+  target_md="docs/v-daemon-user-design-guide.md"
+  target_pdf="docs/v-daemon-user-design-guide.pdf"
+  if [ -f "$guide_md" ]; then
+    cp "$guide_md" "$target_md" || true
+    echo "Copied compiled guide to $target_md"
+  fi
+  if [ -f "$guide_pdf" ]; then
+    cp "$guide_pdf" "$target_pdf" || true
+    echo "Copied PDF guide to $target_pdf"
+  fi
+
   exit 0
 fi
 

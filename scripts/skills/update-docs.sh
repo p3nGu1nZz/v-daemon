@@ -67,6 +67,24 @@ JSON
 # Provide user-friendly summary
 if [ "$RC" -eq 0 ]; then
   echo "update-docs: completed successfully. Outputs: $OUTDIR"
+
+  # Run docs build to compile user design guide and copy into docs/
+  BUILD_STDOUT_FILE="$OUTDIR/build_stdout.txt"
+  BUILD_STDERR_FILE="$OUTDIR/build_stderr.txt"
+  set +e
+  "$DOCS_SCRIPT" --build >"$BUILD_STDOUT_FILE" 2>"$BUILD_STDERR_FILE"
+  BUILD_RC=$?
+  set -e
+
+  # Record build result
+  cat >"$OUTDIR/build_report.json" <<JSON
+{
+  "build_exit_code": $BUILD_RC,
+  "build_stdout": "$BUILD_STDOUT_FILE",
+  "build_stderr": "$BUILD_STDERR_FILE"
+}
+JSON
+
 else
   echo "update-docs: completed with exit code $RC. See $STDERR_FILE for errors."
 fi
