@@ -31,10 +31,21 @@ env_init() {
     . "$REPO_ROOT/scripts/lib/prompts.sh"
   fi
 
-  # YOLO controls whether agents may push commits upstream automatically (default: true).
-  # If YOLO is set to false (or 0/no), agents will still create commits and merge locally but will not push upstream.
-  YOLO="${YOLO:-true}"
-  YOLO="$(printf '%s' "$YOLO" | tr '[:upper:]' '[:lower:]')"
+  # Determine YOLO: env var overrides config, default to true if not set in either.
+  # Valid true values: true, 1, yes, y; false values: false, 0, no, n
+  if [ -n "${YOLO:-}" ]; then
+    YOLO_VAL="$YOLO"
+  else
+    YOLO_VAL=""
+    if [ -f "$CONFIG_FILE" ]; then
+      YOLO_VAL=$(awk -F'=' '/^[[:space:]]*yolo[[:space:]]*=/ {v=$2; gsub(/^[[:space:]]+|[[:space:]]+$/,"",v); gsub(/\"|\'\''/,"",v); print tolower(v); exit}' "$CONFIG_FILE" 2>/dev/null || true)
+    fi
+    YOLO_VAL="${YOLO_VAL:-true}"
+  fi
+  case "$(printf '%s' "$YOLO_VAL" | tr '[:upper:]' '[:lower:]')" in
+    "false"|"0"|"no"|"n") YOLO=false;;
+    *) YOLO=true;;
+  esac
   export YOLO
 
   # Load lightweight sqlite helper if available and initialize DB (non-fatal if sqlite missing)

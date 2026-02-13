@@ -17,6 +17,8 @@ director = "logs/director.log"
 [runtime]
 # Heartbeat interval for the daemon in seconds
 heartbeat_interval_seconds = 30
+# Whether agents may automatically push commits upstream by default (YOLO). If true, agents will push; if false, agents will merge locally but not push.
+yolo = true
 
 [director]
 # Whether the director may attempt safe, sandboxed execution of small patches (default false)
