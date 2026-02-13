@@ -222,6 +222,10 @@ while true; do
     DIR_STATUS="Director: not running"
   fi
   printf '%s [HEARTBEAT] daemon running on PID %s | %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$$" "$DIR_STATUS" >>"$LOGFILE"
-  # TODO: insert build / test / self-update steps here
+  # Autopatch/build/test placeholder (no-op by default)
+  if [ "${DAEMON_SELF_PATCH:-0}" = "1" ]; then
+    # Run safe environment checks; disabled by default to avoid unexpected changes
+    sh "$REPO_ROOT/scripts/setup.sh" --check || true
+  fi
   sleep 20
 done

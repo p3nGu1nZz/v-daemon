@@ -111,6 +111,7 @@ while true; do
     ( run_autopilot_summary ) >/dev/null 2>&1 &
   fi
 
-  # TODO: implement director coordination (spawn workers, RPC, task queue)
+  # Director coordination placeholder: spawning workers, RPC/task queue to be implemented in follow-up tasks
+  # Current behavior: emit heartbeat and attempt autopilot summaries (see actions.sh)
   sleep "${DIRECTOR_INTERVAL_SECONDS:-60}"
 done
