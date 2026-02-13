@@ -52,22 +52,19 @@ for logfile in "$LOG_DIR"/daemon.log "$LOG_DIR"/supervisor.log; do
   fi
 
   timestamp=$(date +%Y%m%dT%H%M%S)
-  gzipfile="${logfile}.${timestamp}.gz"
-  tmpfile="${logfile}.${timestamp}.tmp.gz"
+  rotfile="${logfile}.${timestamp}"
 
-  if gzip -c "$logfile" > "$tmpfile"; then
-    mv "$tmpfile" "$gzipfile"
-    # copytruncate: clear original so writers keep writing to same file handle
+  # copytruncate: snapshot current log to timestamped file, then truncate original
+  if cp "$logfile" "$rotfile"; then
     : > "$logfile"
-    echo "Rotated $(basename "$logfile") -> $(basename "$gzipfile")"
+    echo "Rotated $(basename "$logfile") -> $(basename "$rotfile")"
   else
     echo "Failed to rotate $(basename "$logfile")" >&2
-    rm -f "$tmpfile" 2>/dev/null || true
     continue
   fi
 
   # remove old rotations beyond KEEP (keep newest KEEP)
-  files=$(ls -1t "${logfile}".*.gz 2>/dev/null || true)
+  files=$(ls -1t "${logfile}".* 2>/dev/null || true)
   if [ -n "$files" ]; then
     count=0
     for f in $files; do
