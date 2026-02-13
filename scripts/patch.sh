@@ -76,6 +76,7 @@ new_commit_short=$(git rev-parse --short HEAD)
 
 if [ "$NO_PUSH" = "true" ]; then
   echo "Created commit $new_commit_short (not pushed)."
+  git --no-pager status
   exit 0
 fi
 
@@ -92,3 +93,4 @@ fi
 
 pushed_commit_short=$(git rev-parse --short HEAD)
 echo "Pushed commit: $pushed_commit_short"
+git --no-pager status
