@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 # Director agent: HFSM-based director coordinating worker skills (stubbed states)
 set -eu
 
