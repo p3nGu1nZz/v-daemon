@@ -225,15 +225,70 @@ EOF
     fi
   fi
 
-  if ! command -v copilot >/dev/null 2>&1; then
-    printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot CLI not found; autopilot summary requires the copilot CLI\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
-    # Write an explicit summary file and abort; do NOT fallback to a local summarizer
-    printf 'Copilot CLI not found; autopilot summary aborted.\n' >"$summary_file" 2>/dev/null || true
-    cleanup_tmp || true
-    cleanup_lock
-    trap - EXIT INT TERM
-    return 1
+  
+if ! command -v copilot >/dev/null 2>&1; then
+  printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot CLI not found; falling back to local summarizer
+' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
+  {
+    printf 'AUTOPILOT SUMMARY %s
+' "$run_ts"
+    if [ -r "$REPO_ROOT/README.md" ]; then
+      printf '
+--- README.md (first 80 lines) ---
+'
+      sed -n '1,80p' "$REPO_ROOT/README.md" || true
+      printf '
+'
+    fi
+    if [ -r "$REPO_ROOT/TODO.md" ]; then
+      printf '
+--- TODO.md (first 80 lines) ---
+'
+      sed -n '1,80p' "$REPO_ROOT/TODO.md" || true
+      printf '
+'
+    fi
+    printf '
+--- SCRIPTS LIST ---
+'
+    ls -1 "$REPO_ROOT/scripts" 2>/dev/null | sed -n '1,200p' || true
+  } > "$summary_file"
+
+  {
+    printf 'SUMMARY generated at: %s
+' "$(date -u +%Y%m%dT%H%M%SZ)"
+    if command -v git >/dev/null 2>&1 && [ -d "$REPO_ROOT/.git" ]; then
+      git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || true
+      git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || true
+    fi
+  } > "$context_file"
+
+  # Generate plan using fallback
+  if type fallback_run_autopilot_plan >/dev/null 2>&1; then
+    fallback_run_autopilot_plan "$out_dir" "$summary_file" "$context_file" "$combined_prompt" || true
+  else
+    run_autopilot_plan "$out_dir" "$summary_file" "$context_file" "$combined_prompt" || true
   fi
+
+  # Optionally attempt sandboxed patching if allowed
+  if [ "${V_DAEMON_ALLOW_EXECUTE:-}" = "1" ] || [ "${DIRECTOR_ALLOW_EXECUTE:-}" = "1" ] || [ "${DIRECTOR_ALLOW_EXECUTE:-}" = "true" ]; then
+    if [ -x "$REPO_ROOT/scripts/lib/patcher.sh" ]; then
+      printf '%s [AGENT-DIRECTOR] Autopilot patcher (fallback): starting
+' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
+      sh "$REPO_ROOT/scripts/lib/patcher.sh" "$out_dir" "$out_dir/tasks.txt" "$combined_prompt" "$context_file" >>"$LOGFILE" 2>&1 || true
+      printf '%s [AGENT-DIRECTOR] Autopilot patcher (fallback): completed (audit dir: %s)
+' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" >>"$LOGFILE" 2>/dev/null || true
+    else
+      printf '%s [AGENT-DIRECTOR] Autopilot patcher (fallback): patcher script not present; skipping
+' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
+    fi
+  fi
+
+  cleanup_tmp || true
+  cleanup_lock
+  trap - EXIT INT TERM
+  return 0
+fi
 
   # Sanitize summary: remove obvious copilot-run artifacts and append (up to first 200 lines)
   if [ -s "$summary_file" ]; then
