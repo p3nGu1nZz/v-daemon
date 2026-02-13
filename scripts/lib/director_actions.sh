@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Director action helpers: autopilot summary (uses copilot CLI if available) and a local fallback.
+# Director action helpers: autopilot summary (uses copilot CLI only; local fallback removed).
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -8,37 +8,9 @@ LOGFILE="${REPO_ROOT}/logs/director.log"
 DEV_AUDITS_DIR="$REPO_ROOT/audits"
 mkdir -p "$DEV_AUDITS_DIR"
 
-# Local summarizer fallback
-run_local_summarizer() {
-  echo "Repository summary (fallback)"
-  echo "Generated: $(date +'%Y-%m-%dT%H:%M:%S%z')"
-  echo
-  if [ -f "$REPO_ROOT/README.md" ]; then
-    echo "README (top):"
-    sed -n '1,12p' "$REPO_ROOT/README.md"
-    echo
-  fi
-  if [ -f "$REPO_ROOT/TODO.md" ]; then
-    echo "Top TODOs:"
-    grep -E '^- \[ \]' "$REPO_ROOT/TODO.md" | sed -n '1,10p' || true
-    echo
-  fi
-  echo "Top scripts:"
-  ls -1 "$REPO_ROOT/scripts" 2>/dev/null | sed -n '1,40p'
-  echo
-  echo "Top-level files:"
-  ls -1 "$REPO_ROOT" | sed -n '1,40p'
-  echo
-  echo "File counts by dir:"
-  for d in "$REPO_ROOT" "$REPO_ROOT/scripts" "$REPO_ROOT/src" "$REPO_ROOT/logs"; do
-    if [ -d "$d" ]; then
-      cnt=$(find "$d" -type f 2>/dev/null | wc -l | tr -d ' ')
-      echo "$(basename "$d"): $cnt files"
-    fi
-  done
-}
+# Local summarizer removed; Copilot CLI is required for autopilot summaries.
 
-# Run autopilot summary: try copilot CLI (stdin) and fall back to local summarizer
+# Run autopilot summary: use copilot CLI only (no local fallback)
 run_autopilot_summary() {
   LOCKDIR="$DEV_AUDITS_DIR/director-summary.lock"
   CREATED_LOCK=0
@@ -229,11 +201,24 @@ EOF
         printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot failed to produce any output after %d attempts
 ' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$MAX_ATTEMPTS" >>"$LOGFILE" 2>/dev/null || true
       fi
+
+      # After saving diagnostics, abort without local fallback
+      printf '%s [AGENT-DIRECTOR] Autopilot summary: no usable summary produced; aborting (no local fallback)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
+      cleanup_tmp || true
+      cleanup_lock
+      trap - EXIT INT TERM
+      return 1
     fi
   fi
 
   if ! command -v copilot >/dev/null 2>&1; then
     printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot CLI not found; autopilot summary requires the copilot CLI\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
+    # Write an explicit summary file and abort; do NOT fallback to a local summarizer
+    printf 'Copilot CLI not found; autopilot summary aborted.\n' >"$summary_file" 2>/dev/null || true
+    cleanup_tmp || true
+    cleanup_lock
+    trap - EXIT INT TERM
+    return 1
   fi
 
   # Sanitize summary: remove obvious copilot-run artifacts and append (up to first 200 lines)
