@@ -2,6 +2,11 @@
 # Environment initialization for v-daemon scripts.
 # Usage: env_init REPO_ROOT
 env_init() {
+  # Idempotent: avoid re-running init when sourced multiple times during command invocation
+  if [ "${_V_DAEMON_ENV_INIT_DONE:-}" = "1" ]; then
+    return 0
+  fi
+
   REPO_ROOT="$1"
   if [ -z "$REPO_ROOT" ]; then
     SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -25,4 +30,6 @@ env_init() {
   if [ -f "$REPO_ROOT/scripts/lib/prompts.sh" ]; then
     . "$REPO_ROOT/scripts/lib/prompts.sh"
   fi
+
+  _V_DAEMON_ENV_INIT_DONE=1
 }

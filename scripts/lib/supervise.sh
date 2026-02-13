@@ -14,12 +14,7 @@ if [ -f "$REPO_ROOT/scripts/lib/env.sh" ]; then
   . "$REPO_ROOT/scripts/lib/env.sh"
   env_init "$REPO_ROOT"
 fi
-if [ -f "$REPO_ROOT/scripts/lib/console.sh" ]; then
-  . "$REPO_ROOT/scripts/lib/console.sh"
-fi
-if [ -f "$REPO_ROOT/scripts/lib/logger.sh" ]; then
-  . "$REPO_ROOT/scripts/lib/logger.sh"
-fi
+# console/logger/prompts are loaded by env_init in scripts/lib/env.sh
 DAEMON="${SCRIPT_DIR}/daemon.sh"
 mkdir -p "$RUN_DIR" "$LOG_DIR"
 DAEMON_PIDFILE="${DAEMON_PIDFILE:-$RUN_DIR/v-daemon.pid}"
