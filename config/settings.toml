@@ -1,0 +1,19 @@
+# v-daemon runtime settings (TOML)
+
+[paths]
+run = "run"
+logs = "logs"
+
+[pid_files]
+daemon = "run/v-daemon.pid"
+supervisor = "run/v-daemon-supervisor.pid"
+director = "run/v-director.pid"
+
+[logs]
+daemon = "logs/daemon.log"
+supervisor = "logs/supervisor.log"
+director = "logs/director.log"
+
+[runtime]
+# Heartbeat interval for the daemon in seconds
+heartbeat_interval_seconds = 30

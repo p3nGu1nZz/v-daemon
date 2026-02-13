@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 # Director agent: coordinates worker agents (minimal stub)
 set -eu
 
@@ -11,9 +11,9 @@ USAGE
   exit 0
 fi
 
-PIDFILE="/tmp/v-director.pid"
-LOCKDIR="/tmp/v-director.lock"
-SCRIPT_NAME="$(basename "$0")"
+PIDFILE="$(cd "$(dirname "$0")/../.." && pwd)/run/v-director.pid"
+LOCKDIR="$(cd "$(dirname "$0")/../.." && pwd)/run/v-director.lock"
+SCRIPT_NAME="$(basename \"$0\")"
 
 # Acquire a simple lock using mkdir to avoid concurrent director instances
 acquire_lock() {

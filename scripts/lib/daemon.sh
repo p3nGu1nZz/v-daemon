@@ -12,8 +12,8 @@ USAGE
   exit 0
 fi
 
-PIDFILE="/tmp/v-daemon.pid"
-LOCKDIR="/tmp/v-daemon.lock"
+PIDFILE="$(cd "$(dirname "$0")/../.." && pwd)/run/v-daemon.pid"
+LOCKDIR="$(cd "$(dirname "$0")/../.." && pwd)/run/v-daemon.lock"
 
 # Acquire a simple lock using mkdir to avoid concurrent daemon instances
 acquire_lock() {
@@ -97,8 +97,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 mkdir -p "$REPO_ROOT/logs"
 LOGFILE="${REPO_ROOT}/logs/daemon.log"
 DIRECTOR="${SCRIPT_DIR}/director.sh"
-DIRECTOR_PIDFILE="/tmp/v-director.pid"
-DIRECTOR_LOCK="/tmp/v-director.lock"
+DIRECTOR_PIDFILE="$(cd "$(dirname "$0")/../.." && pwd)/run/v-director.pid"
+DIRECTOR_LOCK="$(cd "$(dirname "$0")/../.." && pwd)/run/v-director.lock"
 DIRECTOR_LOG="${REPO_ROOT}/logs/director.log"
 # Source process controller if available
 if [ -f "$SCRIPT_DIR/process.sh" ]; then

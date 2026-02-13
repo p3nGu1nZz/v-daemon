@@ -17,7 +17,7 @@ Phase: Setup & housekeeping
 
 - [ ] Ensure all scripts (scripts/*.sh and scripts/lib/*.sh) use a POSIX sh shebang (/usr/bin/env sh) and are executable
 - [ ] Verify scripts are pure POSIX sh (remove bashisms) and document any required sh portability notes in scripts/README.md
-- [ ] Create or update config/example.yaml with minimal runtime settings (log paths, run paths, intervals)
+- [ ] Create or update config/settings.toml with minimal runtime settings (log paths, run paths, intervals)
 - [ ] Ensure run/ and logs/ exist and are referenced by scripts (move pidfiles/locks from /tmp into run/)
 - [ ] Update README.md quickstart to reflect POSIX sh usage and the supervisor/run workflow
 
