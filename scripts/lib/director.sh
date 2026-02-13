@@ -84,7 +84,7 @@ echo $$ >"$PIDFILE"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 mkdir -p "$REPO_ROOT/logs"
-DEV_AUDITS_DIR="$REPO_ROOT/audits"
+DEV_AUDITS_DIR="${DEV_AUDITS_DIR:-$REPO_ROOT/audits}"
 mkdir -p "$DEV_AUDITS_DIR"
 LOGFILE="${REPO_ROOT}/logs/director.log"
 

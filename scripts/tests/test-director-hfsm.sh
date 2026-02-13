@@ -9,11 +9,16 @@ mkdir -p "$TEST_RUN_DIR" "$TEST_LOG_DIR"
 export RUN_DIR="$TEST_RUN_DIR"
 export LOG_DIR="$TEST_LOG_DIR"
 
+# Use a test-local audits dir so tests don't interfere with a running director
+TEST_AUDITS_DIR="$TEST_RUN_DIR/audits"
+mkdir -p "$TEST_AUDITS_DIR"
+export DEV_AUDITS_DIR="$TEST_AUDITS_DIR"
+
 # Start director in background
 nohup sh "$REPO_ROOT/scripts/lib/director.sh" >/dev/null 2>&1 &
 PID=$!
 
-AUDITS="$REPO_ROOT/audits/director-heartbeats.jsonl"
+AUDITS="$DEV_AUDITS_DIR/director-heartbeats.jsonl"
 WAIT=0
 FOUND=0
 # wait up to 15s for at least one state_start audit

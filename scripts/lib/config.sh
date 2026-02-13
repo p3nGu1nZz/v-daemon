@@ -29,9 +29,21 @@ config_init() {
 
   CONFIG_FILE="$REPO_ROOT/config/settings.toml"
 
+  # Detect whether RUN_DIR/LOG_DIR were provided in environment; preserve them
+  if [ -n "${RUN_DIR+x}" ]; then
+    RUN_DIR_ENV_PRESET=1
+  else
+    RUN_DIR_ENV_PRESET=0
+  fi
+  if [ -n "${LOG_DIR+x}" ]; then
+    LOG_DIR_ENV_PRESET=1
+  else
+    LOG_DIR_ENV_PRESET=0
+  fi
+
   # Defaults
-  RUN_DIR="$REPO_ROOT/run"
-  LOG_DIR="$REPO_ROOT/logs"
+  RUN_DIR="${RUN_DIR:-$REPO_ROOT/run}"
+  LOG_DIR="${LOG_DIR:-$REPO_ROOT/logs}"
   DAEMON_PIDFILE="$RUN_DIR/v-daemon.pid"
   SUP_PIDFILE="$RUN_DIR/v-daemon-supervisor.pid"
   DIRECTOR_PIDFILE="$RUN_DIR/v-director.pid"
@@ -42,7 +54,7 @@ config_init() {
 
   if [ -f "$CONFIG_FILE" ]; then
     run_val="$(_toml_get paths run "$CONFIG_FILE")"
-    if [ -n "$run_val" ]; then
+    if [ -n "$run_val" ] && [ "${RUN_DIR_ENV_PRESET:-0}" -eq 0 ]; then
       case "$run_val" in
         /*) RUN_DIR="$run_val" ;;
         *) RUN_DIR="$REPO_ROOT/${run_val#./}" ;;
@@ -50,7 +62,7 @@ config_init() {
     fi
 
     log_val="$(_toml_get paths logs "$CONFIG_FILE")"
-    if [ -n "$log_val" ]; then
+    if [ -n "$log_val" ] && [ "${LOG_DIR_ENV_PRESET:-0}" -eq 0 ]; then
       case "$log_val" in
         /*) LOG_DIR="$log_val" ;;
         *) LOG_DIR="$REPO_ROOT/${log_val#./}" ;;
