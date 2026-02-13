@@ -1,3 +1,24 @@
+---
+name: next-steps
+description: "Generate a small set of prioritized, PR-sized next steps from summary.json."
+inputs:
+  summary_path:
+    type: string
+    required: true
+  allow_insert_todos:
+    type: boolean
+    default: false
+  allow_execute:
+    type: boolean
+    default: false
+outputs:
+  - path: run/skills/next-steps/<timestamp>/tasks.json
+  - path: run/skills/next-steps/<timestamp>/tasks.txt
+tags:
+  - planning
+  - tasks
+---
+
 # SKILL: next-steps
 
 ## Summary

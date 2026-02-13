@@ -1,3 +1,14 @@
+---
+name: run-project
+description: "Start, monitor, and stop the v-daemon supervisor and daemon."
+inputs: {}
+outputs:
+  - path: run/  # runtime artifacts and pidfiles
+tags:
+  - runtime
+  - run
+---
+
 # run-project
 
 ## Purpose
