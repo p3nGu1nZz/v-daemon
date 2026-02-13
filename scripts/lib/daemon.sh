@@ -76,8 +76,81 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 mkdir -p "$REPO_ROOT/logs"
 LOGFILE="${REPO_ROOT}/logs/daemon.log"
+DIRECTOR="${SCRIPT_DIR}/director.sh"
+DIRECTOR_PIDFILE="/tmp/v-director.pid"
+DIRECTOR_LOG="${REPO_ROOT}/logs/director.log"
 
 while true; do
+  # Ensure director process is running; adopt existing or start a new one
+  if [ -f "$DIRECTOR_PIDFILE" ]; then
+    DP_EXIST=$(cat "$DIRECTOR_PIDFILE" 2>/dev/null || true)
+    if [ -n "$DP_EXIST" ] && kill -0 "$DP_EXIST" 2>/dev/null; then
+      :
+    else
+      rm -f "$DIRECTOR_PIDFILE" 2>/dev/null || true
+      EXIST="$(ps -eo pid,args | awk -v pat=\"$DIRECTOR\" '$0 ~ pat {print $1}')"
+      for p in $EXIST; do
+        if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
+          echo "$p" >"$DIRECTOR_PIDFILE" 2>/dev/null || true
+          printf '%s [DAEMON] Director: adopted existing director (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$p" >>"$LOGFILE"
+          break
+        fi
+      done
+      if [ ! -f "$DIRECTOR_PIDFILE" ]; then
+        printf '%s [DAEMON] Director: starting director\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE"
+        nohup sh "$DIRECTOR" >>"$DIRECTOR_LOG" 2>&1 &
+        D_START=$!
+        WAITED=0
+        while [ $WAITED -lt 25 ]; do
+          if [ -f "$DIRECTOR_PIDFILE" ]; then
+            DP_EXIST=$(cat "$DIRECTOR_PIDFILE" 2>/dev/null || true)
+            if [ -n "$DP_EXIST" ] && kill -0 "$DP_EXIST" 2>/dev/null; then
+              printf '%s [DAEMON] Director: started (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$DP_EXIST" >>"$LOGFILE"
+              break
+            fi
+          fi
+          sleep 0.2
+          WAITED=$((WAITED+1))
+        done
+        if [ ! -f "$DIRECTOR_PIDFILE" ]; then
+          echo "$D_START" >"$DIRECTOR_PIDFILE" 2>/dev/null || true
+          printf '%s [DAEMON] Director: started (PID %s) (pidfile created by daemon)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$D_START" >>"$LOGFILE"
+        fi
+      fi
+    fi
+  else
+    EXIST="$(ps -eo pid,args | awk -v pat=\"$DIRECTOR\" '$0 ~ pat {print $1}')"
+    if [ -n "$EXIST" ]; then
+      for p in $EXIST; do
+        if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
+          echo "$p" >"$DIRECTOR_PIDFILE" 2>/dev/null || true
+          printf '%s [DAEMON] Director: adopted existing director (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$p" >>"$LOGFILE"
+          break
+        fi
+      done
+    else
+      printf '%s [DAEMON] Director: starting director (no pidfile)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE"
+      nohup sh "$DIRECTOR" >>"$DIRECTOR_LOG" 2>&1 &
+      D_START=$!
+      WAITED=0
+      while [ $WAITED -lt 25 ]; do
+        if [ -f "$DIRECTOR_PIDFILE" ]; then
+          DP_EXIST=$(cat "$DIRECTOR_PIDFILE" 2>/dev/null || true)
+          if [ -n "$DP_EXIST" ] && kill -0 "$DP_EXIST" 2>/dev/null; then
+            printf '%s [DAEMON] Director: started (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$DP_EXIST" >>"$LOGFILE"
+            break
+          fi
+        fi
+        sleep 0.2
+        WAITED=$((WAITED+1))
+      done
+      if [ ! -f "$DIRECTOR_PIDFILE" ]; then
+        echo "$D_START" >"$DIRECTOR_PIDFILE" 2>/dev/null || true
+        printf '%s [DAEMON] Director: started (PID %s) (pidfile created by daemon)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$D_START" >>"$LOGFILE"
+      fi
+    fi
+  fi
+
   printf '%s [HEARTBEAT] daemon running on PID %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$$" >>"$LOGFILE"
   # TODO: insert build / test / self-update steps here
   sleep 60
