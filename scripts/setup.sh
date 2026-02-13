@@ -137,12 +137,22 @@ CHECK_ONLY=0
 CLEAN=0
 CI_MODE=0
 DIRECTIVE_ARG=""
+DIRECTIVE_PROVIDED=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -y|--yes) FORCE=1; shift;;
     --check) CHECK_ONLY=1; shift;;
     --clean) CLEAN=1; shift;;
-    --directive) shift; DIRECTIVE_ARG="$1"; shift;;
+    --directive)
+      DIRECTIVE_PROVIDED=1
+      if [ "$#" -eq 1 ]; then
+        DIRECTIVE_ARG=""
+        shift
+      else
+        DIRECTIVE_ARG="$2"
+        shift 2
+      fi
+      ;;
     -h|--help) usage;;
     *) echo "Unknown argument: $1"; usage;;
   esac
@@ -169,7 +179,24 @@ if [ "${CI_MODE:-0}" -eq 1 ]; then
 fi
 
 # If directive arg provided, update the settings file and commit via patch-repo
-if [ -n "${DIRECTIVE_ARG:-}" ]; then
+if [ "${DIRECTIVE_PROVIDED:-0}" -eq 1 ]; then
+  cfg="$REPO_ROOT/config/settings.toml"
+  # If empty string requested, print current directive and exit
+  if [ -z "${DIRECTIVE_ARG:-}" ]; then
+    if [ -f "$cfg" ]; then
+      current="$(grep '^[[:space:]]*directive[[:space:]]*=' "$cfg" 2>/dev/null | sed -n 's/^[[:space:]]*directive[[:space:]]*=[[:space:]]*"\(.*\)".*/\1/p' || true)"
+      if [ -n "$current" ]; then
+        echo "$current"
+        exit 0
+      else
+        echo "No directive set in $cfg" >&2
+        exit 1
+      fi
+    else
+      echo "Config file $cfg not found" >&2
+      exit 1
+    fi
+  fi
   update_directive_in_config "$DIRECTIVE_ARG"
   if [ -f "$SCRIPT_DIR/skills/patch-repo.sh" ]; then
     echo "Committing settings change using patch-repo..."

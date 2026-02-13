@@ -105,6 +105,10 @@ DIRECTOR="${SCRIPT_DIR}/director.sh"
 DIRECTOR_PIDFILE="${RUN_DIR}/v-director.pid"
 DIRECTOR_LOCK="${RUN_DIR}/v-director.lock"
 DIRECTOR_LOG="${REPO_ROOT}/logs/director.log"
+SQL_AGENT="${SCRIPT_DIR}/sql-agent.sh"
+SQL_AGENT_PIDFILE="${RUN_DIR}/v-sql-agent.pid"
+SQL_AGENT_LOCK="${RUN_DIR}/v-sql-agent.lock"
+SQL_AGENT_LOG="${REPO_ROOT}/logs/sql-agent.log"
 # Source process controller if available
 if [ -f "$SCRIPT_DIR/process.sh" ]; then
   . "$SCRIPT_DIR/process.sh"
@@ -204,12 +208,79 @@ ensure_director_running() {
   return 0
 }
 
+# Ensure sql-agent process is running; function to adopt or start the sql-agent
+ensure_sql_agent_running() {
+  if [ -f "$SQL_AGENT_PIDFILE" ]; then
+    SP_EXIST=$(cat "$SQL_AGENT_PIDFILE" 2>/dev/null || true)
+    if is_pid_for_script "$SP_EXIST" "$SQL_AGENT"; then
+      return 0
+    fi
+    rm -f "$SQL_AGENT_PIDFILE" 2>/dev/null || true
+  fi
+
+  # Try to adopt any running sql-agent matching the script
+  EXIST="$(ps_fallback pid,args | awk -v pat=\"$SQL_AGENT\" '$0 ~ pat {print $1}')"
+  for p in $EXIST; do
+    if [ -n "$p" ] && is_pid_for_script "$p" "$SQL_AGENT"; then
+      echo "$p" >"$SQL_AGENT_PIDFILE" 2>/dev/null || true
+      log "[DAEMON] sql-agent adopted (PID $p)"
+      return 0
+    fi
+  done
+
+  if [ -d "$SQL_AGENT_LOCK" ]; then
+    LOCK_OWNER="$(cat "$SQL_AGENT_LOCK/pid" 2>/dev/null || true)"
+    if [ -n "$LOCK_OWNER" ] && kill -0 "$LOCK_OWNER" 2>/dev/null; then
+      if is_pid_for_script "$LOCK_OWNER" "$SQL_AGENT"; then
+        echo "$LOCK_OWNER" >"$SQL_AGENT_PIDFILE" 2>/dev/null || true
+        log "[DAEMON] sql-agent appears to be starting (lock owner PID $LOCK_OWNER), adopting"
+        return 0
+      else
+        log "[DAEMON] sql-agent lock present but owner PID $LOCK_OWNER is not sql-agent; removing stale lock"
+        rm -rf "$SQL_AGENT_LOCK" 2>/dev/null || true
+      fi
+    else
+      rm -rf "$SQL_AGENT_LOCK" 2>/dev/null || true
+    fi
+  fi
+
+  log "[DAEMON] starting sql-agent (initiated by daemon)"
+  nohup sh "$SQL_AGENT" >>"$SQL_AGENT_LOG" 2>&1 &
+  S_START=$!
+  WAITED=0
+  while [ $WAITED -lt 25 ]; do
+    if [ -f "$SQL_AGENT_PIDFILE" ]; then
+      SP_EXIST=$(cat "$SQL_AGENT_PIDFILE" 2>/dev/null || true)
+      if is_pid_for_script "$SP_EXIST" "$SQL_AGENT"; then
+        log "[DAEMON] sql-agent started (PID $SP_EXIST)"
+        return 0
+      fi
+    fi
+    sleep 0.2
+    WAITED=$((WAITED+1))
+  done
+
+  if [ ! -f "$SQL_AGENT_PIDFILE" ]; then
+    if is_pid_for_script "$S_START" "$SQL_AGENT"; then
+      echo "$S_START" >"$SQL_AGENT_PIDFILE" 2>/dev/null || true
+      log "[DAEMON] sql-agent started (PID $S_START) (pidfile created by daemon)"
+    else
+      log "[DAEMON] sql-agent helper process (PID $S_START) did not match sql-agent; not writing pidfile"
+    fi
+  fi
+  return 0
+}
+
 # Ensure director is started immediately on daemon startup
 ensure_director_running
+# Ensure sql-agent is started immediately on daemon startup
+ensure_sql_agent_running
 
 while true; do
   # Periodically ensure director is running
   ensure_director_running
+  # Periodically ensure sql-agent is running
+  ensure_sql_agent_running
 
   # Heartbeat: include director status so monitor shows director health
   DPID=""
