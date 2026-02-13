@@ -391,3 +391,9 @@ fi
   rm -f "$plan_prompt_file" "$plan_in" 2>/dev/null || true
   return 0
 }
+
+# If the script is executed directly with the "run" argument, invoke the autopilot summary.
+# This allows running: sh scripts/lib/actions.sh run
+if [ "$(basename "$0")" = "actions.sh" ] && [ "${1:-}" = "run" ]; then
+  run_autopilot_summary
+fi
