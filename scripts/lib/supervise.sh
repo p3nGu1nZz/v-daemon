@@ -23,14 +23,8 @@ touch "$LOGFILE" "$SUP_LOGFILE"
 # Report startup immediately so monitors see supervisor pid before daemon heartbeats
 printf '%s [SUP] Supervisor: started (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$$" >>"$SUP_LOGFILE"
 
-# Start tail to stream daemon logs to supervisor stdout (non-blocking)
-# Prefix forwarded daemon lines so the combined supervisor log contains both [SUP] and [DAEMON] entries
-tail -n 0 -F "$LOGFILE" 2>/dev/null | sed "s/^/[DAEMON] /" &
-TAIL_PID=$!
-
 # Clean up on exit
 cleanup() {
-  [ -n "${TAIL_PID:-}" ] && kill "$TAIL_PID" 2>/dev/null || true
   rm -f "$SUP_PIDFILE"
   exit 0
 }
