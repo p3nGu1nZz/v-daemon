@@ -249,6 +249,11 @@ EOF
       fi
       printf '%s [AGENT-DIRECTOR] summary excerpt: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$excerpt" >>"$LOGFILE" 2>/dev/null || true
       printf '%s [AGENT-DIRECTOR] summary excerpt: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$excerpt" || true
+      # Also print a truncated head (first 6 lines) of the sanitized summary for visibility
+      printf '%s [AGENT-DIRECTOR] summary head (first 6 lines):\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
+      printf '%s [AGENT-DIRECTOR] summary head (first 6 lines):\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" || true
+      awk 'length($0)>200 {print substr($0,1,197) "..."; next} {print}' "$summary_file" | sed -n '1,6p' >>"$LOGFILE" 2>/dev/null || true
+      awk 'length($0)>200 {print substr($0,1,197) "..."; next} {print}' "$summary_file" | sed -n '1,6p' || true
 
       # After a successful sanitized summary, attempt to generate a prioritized itemized plan using Copilot
       if [ -s "$summary_file" ]; then
