@@ -48,6 +48,18 @@ env_init() {
   esac
   export YOLO
 
+  # Determine DIRECTIVE: env var overrides config. Default empty string if not set.
+  if [ -n "${DIRECTIVE:-}" ]; then
+    DIRECTIVE_VAL="$DIRECTIVE"
+  else
+    DIRECTIVE_VAL=""
+    if [ -f "$CONFIG_FILE" ]; then
+      DIRECTIVE_VAL=$(sed -n 's/^[[:space:]]*directive[[:space:]]*=[[:space:]]*"\?\(.*\)"\?/\1/p' "$CONFIG_FILE" | sed -n '1p' || true)
+    fi
+  fi
+  DIRECTIVE="${DIRECTIVE_VAL:-}"
+  export DIRECTIVE
+
   # Load lightweight sqlite helper if available and initialize DB (non-fatal if sqlite missing)
   if [ -f "$REPO_ROOT/scripts/lib/sql.sh" ]; then
     # shellcheck disable=SC1090

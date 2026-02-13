@@ -3,11 +3,12 @@
 set -eu
 
 usage() {
-  echo "Usage: $0 [--yes|-y|--ci|--check|--clean]"
+  echo "Usage: $0 [--yes|-y|--ci|--check|--clean|--directive \"<string>\"]"
   echo "Installs required packages (cmake, ninja, a C++ toolchain, git) for common Linux distros."
   echo "Use --ci to run in CI mode (non-interactive); will skip or mock certain deps."
   echo "Use --check to run repository checks only (no installs)."
   echo "Use --clean to remove generated artifacts (audits, logs, run)."
+  echo "Use --directive \"<string>\" to update config/settings.toml with the prime directive for agents and commit the change via scripts/skills/patch-repo.sh."
   exit 1
 }
 
@@ -118,16 +119,31 @@ clean_artifacts() {
   echo "Clean complete."
 }
 
+update_directive_in_config() {
+  cfg="$REPO_ROOT/config/settings.toml"
+  val="$1"
+  # escape double quotes in value
+  esc=$(printf '%s' "$val" | sed 's/"/\\"/g')
+  if [ -f "$cfg" ] && grep -q '^[[:space:]]*directive[[:space:]]*=' "$cfg" 2>/dev/null; then
+    awk -v v="$esc" 'BEGIN{q="\""} /^[[:space:]]*directive[[:space:]]*=/ {print "directive = \"" v "\""; next} {print}' "$cfg" > "$cfg.tmp" && mv "$cfg.tmp" "$cfg"
+  else
+    printf '\n# Prime directive for agents\ndirective = "%s"\n' "$esc" >> "$cfg"
+  fi
+  echo "Updated $cfg with directive: $val"
+}
+
 FORCE=0
 CHECK_ONLY=0
 CLEAN=0
 CI_MODE=0
+DIRECTIVE_ARG=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -y|--yes) FORCE=1; shift;;
     --ci) CI_MODE=1; shift;;
     --check) CHECK_ONLY=1; shift;;
     --clean) CLEAN=1; shift;;
+    --directive) shift; DIRECTIVE_ARG="$1"; shift;;
     -h|--help) usage;;
     *) echo "Unknown argument: $1"; usage;;
   esac
@@ -146,6 +162,18 @@ fi
 if [ "${CI_MODE:-0}" -eq 1 ]; then
   echo "CI mode enabled: running non-interactively"
   FORCE=1
+fi
+
+# If directive arg provided, update the settings file and commit via patch-repo
+if [ -n "${DIRECTIVE_ARG:-}" ]; then
+  update_directive_in_config "$DIRECTIVE_ARG"
+  if [ -f "$SCRIPT_DIR/skills/patch-repo.sh" ]; then
+    echo "Committing settings change using patch-repo..."
+    sh "$SCRIPT_DIR/skills/patch-repo.sh" || echo "patch-repo failed; check run/skills/patch-repo"
+  else
+    echo "patch-repo helper not found at $SCRIPT_DIR/skills/patch-repo.sh; please commit $REPO_ROOT/config/settings.toml manually"
+  fi
+  exit 0
 fi
 
 PKGS_COMMON="cmake git pkg-config ca-certificates curl"
