@@ -432,24 +432,24 @@ input_loop() {
   printf '' > "$buf_file"
   printf '0' > "$tree_count_file"
 
-  ESC="$(printf '\033')"
+  ESC="$(printf '\\033')"
   UP="$ESC[A"
   DOWN="$ESC[B"
-  TAB="$(printf '\t')"
-  DEL="$(printf '\177')"
-  NL="$(printf '\n')"
+  TAB="$(printf '\\t')"
+  DEL="$(printf '\\177')"
+  NL="$(printf '\\n')"
+  CR="$(printf '\\r')"
 
   while :; do
-    # read one byte (blocking until input available)
-    c="$(dd bs=1 count=1 2>/dev/null || true)"
+    # read one byte (blocking until input available) from the controlling terminal
+    c="$(dd bs=1 count=1 2>/dev/null < /dev/tty || true)"
     if [ -z "$c" ]; then
-      # nothing read; continue
       continue
     fi
 
     if [ "$c" = "$ESC" ]; then
       # read next two bytes for arrow sequences (blocking)
-      seq_tail="$(dd bs=1 count=2 2>/dev/null || true)"
+      seq_tail="$(dd bs=1 count=2 2>/dev/null < /dev/tty || true)"
       seq="$c$seq_tail"
       if [ "$seq" = "$UP" ]; then
         focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
@@ -476,11 +476,13 @@ input_loop() {
       continue
     fi
 
-    if [ "$c" = "$NL" ]; then
-      # Enter: read buffer and handle command
+    if [ "$c" = "$NL" ] || [ "$c" = "$CR" ]; then
+      # Enter: read buffer, strip CRs, and handle command (capture stderr to monitor_last_msg)
       cmdline="$(cat "$buf_file" 2>/dev/null || echo '')"
+      # strip any stray CRs
+      cmdline="$(printf '%s' "$cmdline" | tr -d '\\r')"
       if [ -n "$cmdline" ]; then
-        handle_command "$cmdline"
+        handle_command "$cmdline" 2> "$RUN_DIR/monitor_last_msg" || true
       fi
       # clear buffer
       printf '' > "$buf_file"
@@ -599,7 +601,7 @@ monitor_foreground() {
 
   # Background refresher to update an anchored status line with uptime/errors/swarm state
   monitor_start_ts=$(date +%s)
-  MONITOR_INTERVAL="${MONITOR_INTERVAL:-1}"
+  MONITOR_INTERVAL="${MONITOR_INTERVAL:-0.12}"
   # Record whether monitor started while swarm was active; only auto-exit if it was
   INITIAL_ACTIVE=0
   if [ "$SWARM_STATUS" != "swarm offline" ]; then
@@ -618,8 +620,6 @@ monitor_foreground() {
   refresh_status_loop() {
     while :; do
       now_ts=$(date +%s)
-      # toggle cursor state each loop so blinking is visible even if other state hasn't changed
-      CURSOR_TOG=$((1 - ${CURSOR_TOG:-1}))
       # Uptime: prefer daemon pidfile mtime, fall back to monitor runtime
       if [ -f "$DAEMON_PIDFILE" ]; then
         pf_mtime=$(stat -c %Y "$DAEMON_PIDFILE" 2>/dev/null || true)
@@ -823,9 +823,17 @@ monitor_foreground() {
         FOCUS="$(cat "$RUN_DIR/monitor_focus" 2>/dev/null || echo cmd)"
         BUF="$(cat "$RUN_DIR/monitor_input_buf" 2>/dev/null || echo '')"
         if [ "${status_line}" != "${LAST_STATUS_LINE}" ] || [ "$tree_count" != "${LAST_TREE_COUNT:-}" ] || [ "$SEL" != "${LAST_SEL:-}" ] || [ "$FOCUS" != "${LAST_FOCUS:-}" ] || [ "$BUF" != "${LAST_BUF:-}" ] || [ "${CURSOR_TOG:-0}" != "${LAST_CURSOR_TOG:-}" ]; then
-          # move to bottom and up by (tree_count+1) lines to leave room for an input prompt
+          # move to bottom and up by (tree_count+message_count+1) lines to leave room for an input prompt and any command output
           printf '\033[s\033[999B' >&2
-          move_up=$((tree_count + 1))
+
+          # compute message count (last command output) and include in move calculation
+          if [ -f "$RUN_DIR/monitor_last_msg" ]; then
+            message_count=$(wc -l < "$RUN_DIR/monitor_last_msg" 2>/dev/null || echo 0)
+          else
+            message_count=0
+          fi
+
+          move_up=$((tree_count + 1 + message_count))
           if [ "$move_up" -gt 0 ]; then
             printf '\033[%dA' "$move_up" >&2
           fi
@@ -851,6 +859,13 @@ monitor_foreground() {
               printf '\033[2K\r%s%s\n' "$prefix" "$l" >&2
             fi
           done < "$tree_tmp"
+
+          # print any last command output lines (from handle_command)
+          if [ -f "$RUN_DIR/monitor_last_msg" ]; then
+            while IFS= read -r ml; do
+              printf '\033[2K\r%s\n' "$ml" >&2
+            done < "$RUN_DIR/monitor_last_msg"
+          fi
 
           # print input prompt line above the anchored status
           if [ "$FOCUS" = "cmd" ]; then
