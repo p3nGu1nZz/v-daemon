@@ -229,7 +229,7 @@ EOF
     mv "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || cp "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || true
     cleaned=$(mktemp "/tmp/director_cleaned_${run_ts}.XXXXXX") || cleaned="$out_dir/copilot_sanitized.txt"
     # filter out noise that looks like shell commands, permission errors, copilot help hints, or copilot planning artifacts
-    grep -i -v -E 'Permission denied|could not request permission|Try .*copilot --help|^\\$ |^\\s*✗|Reading README|Running parallel|Attempt to read|^\\s*\\$|Asked user:|User responded:|Shell execution is blocked|sh scripts/check.sh' "$out_dir/copilot_raw.txt" > "$cleaned" 2>/dev/null || cp "$out_dir/copilot_raw.txt" "$cleaned" 2>/dev/null || true
+    grep -i -v -E 'Permission denied|could not request permission|Try .*copilot --help|^\\$ |^\\s*✗|\\bReading\\b|\\bPrint\\b|\\bAsked user:|\\bUser responded:|Marking the inspection|parallel tool call|report intent|Running repository environment checks|sh scripts/check.sh|Shell execution is blocked|Attempt to read|^\\s*\\$' "$out_dir/copilot_raw.txt" > "$cleaned" 2>/dev/null || cp "$out_dir/copilot_raw.txt" "$cleaned" 2>/dev/null || true
 
     if [ -s "$cleaned" ]; then
       # Move sanitized version into the canonical summary file and keep copies
