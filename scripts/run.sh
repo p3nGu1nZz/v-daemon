@@ -20,7 +20,6 @@ Commands:
   start           Start the supervisor (background).
   stop            Stop supervisor and daemon.
   status          Print supervisor and daemon status.
-  supervise       Internal supervisor loop (used by start).
 
 Options:
   --monitor, -m   After running the command, stream daemon and supervisor logs and print status lines (runs in foreground).
@@ -36,9 +35,36 @@ USAGE
 }
 
 start_supervisor_bg() {
-  nohup sh "$SCRIPT_DIR/run.sh" supervise >>"$SUP_LOGFILE" 2>&1 &
-  echo $! >"$SUP_PIDFILE"
-  echo "Started supervisor (PID $(cat "$SUP_PIDFILE"))"
+  # Start supervisor in background
+  nohup sh "$SCRIPT_DIR/supervise.sh" >>"$SUP_LOGFILE" 2>&1 &
+  BG_PID=$!
+
+  # Wait for supervise.sh to write its pidfile and a startup entry in SUP_LOGFILE
+  TIMEOUT=10
+  waited=0
+  SUPPID=""
+  while [ $waited -lt $TIMEOUT ]; do
+    if [ -f "$SUP_PIDFILE" ]; then
+      SUPPID=$(cat "$SUP_PIDFILE" 2>/dev/null || true)
+      if [ -n "$SUPPID" ] && kill -0 "$SUPPID" 2>/dev/null; then
+        if grep -q "Supervisor: started" "$SUP_LOGFILE" 2>/dev/null; then
+          echo "Started supervisor (PID $SUPPID)"
+          return
+        fi
+      fi
+    fi
+    sleep 0.2
+    waited=$((waited+1))
+  done
+
+  # Fallback: report background PID if supervise didn't populate pidfile
+  if [ -n "$SUPPID" ]; then
+    echo "Started supervisor (PID $SUPPID)"
+  else
+    echo "Started supervisor (PID $BG_PID) (SUP_PIDFILE not found)"
+    # write bg pidfile for convenience
+    echo "$BG_PID" >"$SUP_PIDFILE" || true
+  fi
 }
 
 # Parse optional --monitor flag anywhere in args and rebuild positional params without it
@@ -71,6 +97,44 @@ else
   set --
 fi
 
+cleanup_and_exit() {
+  echo "Caught interrupt; shutting down supervisor and daemon..." >&2
+
+  # Kill any tails streaming logs
+  [ -n "${TAIL_D:-}" ] && kill "$TAIL_D" 2>/dev/null || true
+  [ -n "${TAIL_S:-}" ] && kill "$TAIL_S" 2>/dev/null || true
+
+  # Stop supervisor if running
+  if [ -f "$SUP_PIDFILE" ]; then
+    SUPPID=$(cat "$SUP_PIDFILE" 2>/dev/null || true)
+    if [ -n "$SUPPID" ] && kill -0 "$SUPPID" 2>/dev/null; then
+      echo "Stopping supervisor (PID $SUPPID)" >&2
+      kill "$SUPPID" 2>/dev/null || true
+      sleep 1
+      if kill -0 "$SUPPID" 2>/dev/null; then
+        kill -TERM "$SUPPID" 2>/dev/null || kill -9 "$SUPPID" 2>/dev/null || true
+      fi
+    fi
+    rm -f "$SUP_PIDFILE" 2>/dev/null || true
+  fi
+
+  # Stop daemon if running
+  if [ -f "$DAEMON_PIDFILE" ]; then
+    DPID=$(cat "$DAEMON_PIDFILE" 2>/dev/null || true)
+    if [ -n "$DPID" ] && kill -0 "$DPID" 2>/dev/null; then
+      echo "Stopping daemon (PID $DPID)" >&2
+      kill "$DPID" 2>/dev/null || true
+      sleep 1
+      if kill -0 "$DPID" 2>/dev/null; then
+        kill -TERM "$DPID" 2>/dev/null || kill -9 "$DPID" 2>/dev/null || true
+      fi
+    fi
+    rm -f "$DAEMON_PIDFILE" 2>/dev/null || true
+  fi
+
+  exit 130
+}
+
 monitor_foreground() {
   echo "Monitor: streaming daemon and supervisor logs (press Ctrl-C to exit)"
   touch "$LOGFILE" "$SUP_LOGFILE"
@@ -81,7 +145,8 @@ monitor_foreground() {
   tail -n 0 -F "$SUP_LOGFILE" 2>/dev/null | sed "s/^/[SUP] /" &
   TAIL_S=$!
 
-  trap 'kill "$TAIL_D" "$TAIL_S" 2>/dev/null || true; exit 0' INT TERM EXIT
+  # Ensure Ctrl-C triggers clean shutdown of supervisor and daemon
+  trap 'cleanup_and_exit' INT TERM
 
   # Periodic status updates (will intermix with logs)
   while true; do
@@ -110,7 +175,7 @@ case "${1:-}" in
     fi
     ;;
   stop)
-    # Stop supervisor
+    # Stop supervisor via pidfile if present
     if [ -f "$SUP_PIDFILE" ]; then
       SUPPID=$(cat "$SUP_PIDFILE")
       if kill "$SUPPID" 2>/dev/null; then
@@ -120,9 +185,37 @@ case "${1:-}" in
       fi
       rm -f "$SUP_PIDFILE"
     else
-      echo "Supervisor not running"
+      echo "Supervisor not running (no pidfile)"
     fi
-    # Stop daemon
+
+    # Also kill any orphaned supervise.sh processes under this repo
+    echo "Looking for orphaned supervisor processes..." >&2
+    PIDS="$(ps -eo pid,args | awk -v pat="$SCRIPT_DIR/supervise.sh" '$0 ~ pat {print $1}')"
+    if [ -n "$PIDS" ]; then
+      for p in $PIDS; do
+        if [ -z "$p" ]; then
+          continue
+        fi
+        if kill -0 "$p" 2>/dev/null; then
+          echo "Stopping orphaned supervisor process PID $p" >&2
+          kill "$p" 2>/dev/null || true
+          # wait up to ~3s (15 * 0.2s) for process to exit
+          WAITED=0
+          while kill -0 "$p" 2>/dev/null && [ $WAITED -lt 15 ]; do
+            sleep 0.2
+            WAITED=$((WAITED+1))
+          done
+          if kill -0 "$p" 2>/dev/null; then
+            echo "Force-killing orphaned supervisor process PID $p" >&2
+            kill -9 "$p" 2>/dev/null || true
+          else
+            echo "Stopped orphaned supervisor process PID $p" >&2
+          fi
+        fi
+      done
+    fi
+
+    # Stop daemon via pidfile if present
     if [ -f "$DAEMON_PIDFILE" ]; then
       DPID=$(cat "$DAEMON_PIDFILE")
       if kill "$DPID" 2>/dev/null; then
@@ -132,8 +225,25 @@ case "${1:-}" in
       fi
       rm -f "$DAEMON_PIDFILE"
     else
-      echo "Daemon not running"
+      echo "Daemon not running (no pidfile)"
     fi
+
+    # Kill any orphaned daemon processes under this repo
+    echo "Looking for orphaned daemon processes..." >&2
+    PIDS="$(ps -eo pid,args | awk -v pat="$DAEMON" '$0 ~ pat {print $1}')"
+    if [ -n "$PIDS" ]; then
+      for p in $PIDS; do
+        if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
+          echo "Killing orphaned daemon process PID $p" >&2
+          kill "$p" 2>/dev/null || true
+          sleep 1
+          if kill -0 "$p" 2>/dev/null; then
+            kill -TERM "$p" 2>/dev/null || kill -9 "$p" 2>/dev/null || true
+          fi
+        fi
+      done
+    fi
+
     if [ "$MONITOR" -eq 1 ]; then
       monitor_foreground
     fi
@@ -155,48 +265,7 @@ case "${1:-}" in
     ;;
 
 
-  supervise)
-    # Supervisor loop: ensure daemon is running, restart if it dies, stream logs to console
-    echo $$ >"$SUP_PIDFILE"
-    trap 'rm -f "$SUP_PIDFILE"; exit 0' INT TERM EXIT
 
-    # Ensure log files exist
-    touch "$LOGFILE" "$SUP_LOGFILE"
-
-    # Start tail to stream daemon logs to console (non-blocking)
-    tail -n 0 -F "$LOGFILE" 2>/dev/null &
-    TAIL_PID=$!
-
-    # Clean up on exit
-    cleanup() {
-      [ -n "${TAIL_PID:-}" ] && kill "$TAIL_PID" 2>/dev/null || true
-      rm -f "$SUP_PIDFILE"
-      exit 0
-    }
-    trap 'cleanup' INT TERM EXIT
-
-    while true; do
-      if [ -f "$DAEMON_PIDFILE" ]; then
-        DPID=$(cat "$DAEMON_PIDFILE" 2>/dev/null || true)
-        if [ -n "$DPID" ] && kill -0 "$DPID" 2>/dev/null; then
-          printf '%s Supervisor: daemon running (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$DPID" >>"$SUP_LOGFILE"
-        else
-          # Stale PID file
-          rm -f "$DAEMON_PIDFILE" 2>/dev/null || true
-          printf '%s Supervisor: starting daemon\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$SUP_LOGFILE"
-          nohup sh "$DAEMON" >>"$LOGFILE" 2>&1 &
-          echo $! >"$DAEMON_PIDFILE"
-          printf '%s Supervisor: started daemon (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$(cat $DAEMON_PIDFILE)" >>"$SUP_LOGFILE"
-        fi
-      else
-        printf '%s Supervisor: starting daemon (no pidfile)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$SUP_LOGFILE"
-        nohup sh "$DAEMON" >>"$LOGFILE" 2>&1 &
-        echo $! >"$DAEMON_PIDFILE"
-        printf '%s Supervisor: started daemon (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$(cat $DAEMON_PIDFILE)" >>"$SUP_LOGFILE"
-      fi
-      sleep "$CHECK_INTERVAL"
-    done
-    ;;
   *)
     usage
     ;;
