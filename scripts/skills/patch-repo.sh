@@ -251,6 +251,78 @@ else
 fi
 
 # Write a structured JSON report
+# Attempt to merge the pushed branch into main/master on origin if appropriate.
+merge_attempted_json=false
+merge_result="skipped"
+merge_branch=""
+if [ "$pushed" = true ]; then
+  # default to attempting merge for non-main branches
+  current_branch="$(git rev-parse --abbrev-ref HEAD)"
+  if [ "$current_branch" != "main" ] && [ "$current_branch" != "master" ]; then
+    merge_attempted_json=true
+    # detect remote main branch name
+    MAIN_BRANCH="main"
+    if ! git ls-remote --exit-code --heads origin "$MAIN_BRANCH" >/dev/null 2>&1; then
+      if git ls-remote --exit-code --heads origin master >/dev/null 2>&1; then
+        MAIN_BRANCH="master"
+      fi
+    fi
+    echo "Attempting to merge branch '$current_branch' into '$MAIN_BRANCH' on origin..."
+
+    if git fetch origin "$MAIN_BRANCH" "$current_branch" >/dev/null 2>&1; then
+      # ensure a clean local MAIN_BRANCH reflecting origin
+      if git show-ref --verify --quiet refs/heads/"$MAIN_BRANCH"; then
+        git checkout "$MAIN_BRANCH"
+        git reset --hard "origin/$MAIN_BRANCH"
+      else
+        git checkout -b "$MAIN_BRANCH" "origin/$MAIN_BRANCH"
+      fi
+
+      echo "Merging origin/$current_branch into $MAIN_BRANCH"
+      if git merge --no-ff --no-edit "origin/$current_branch" >/dev/null 2>&1; then
+        echo "Merge succeeded. Pushing $MAIN_BRANCH to origin..."
+        if git push origin "$MAIN_BRANCH" >/dev/null 2>&1; then
+          merge_result="merged_and_pushed"
+        else
+          merge_result="merged_push_failed"
+        fi
+      else
+        echo "Merge reported conflicts; attempting automated 'theirs' strategy..."
+        if git merge -s recursive -X theirs --no-edit "origin/$current_branch" >/dev/null 2>&1; then
+          echo "Automated 'theirs' merge succeeded. Pushing $MAIN_BRANCH..."
+          if git push origin "$MAIN_BRANCH" >/dev/null 2>&1; then
+            merge_result="automated_resolved_and_pushed"
+          else
+            merge_result="automated_resolved_push_failed"
+          fi
+        else
+          echo "Automated resolution failed; aborting merge and creating merge branch for manual resolution."
+          git merge --abort >/dev/null 2>&1 || true
+          MERGE_FAIL_BRANCH="merge/${current_branch}-into-${MAIN_BRANCH}-${TIMESTAMP}"
+          git checkout -b "$MERGE_FAIL_BRANCH"
+          if git push -u origin "$MERGE_FAIL_BRANCH" >/dev/null 2>&1; then
+            merge_result="conflicts_push_merge_branch_created"
+            merge_branch="$MERGE_FAIL_BRANCH"
+          else
+            merge_result="conflicts_push_merge_branch_failed"
+            merge_branch="$MERGE_FAIL_BRANCH"
+          fi
+        fi
+      fi
+
+      # switch back to the original branch
+      git checkout "$current_branch" >/dev/null 2>&1 || true
+    else
+      echo "Warning: failed to fetch remote branches; skipping merge."
+      merge_result="fetch_failed"
+    fi
+  else
+    echo "Current branch is '$current_branch' (main/master); skipping merge."
+    merge_result="skipped_main_branch"
+  fi
+fi
+
+# Write a structured JSON report including merge metadata
 cat >"$OUTDIR/report.json" <<JSON
 {
   "timestamp": "$TIMESTAMP",
@@ -260,6 +332,9 @@ cat >"$OUTDIR/report.json" <<JSON
   "commit": "$commit",
   "branch": "$branch",
   "pushed": $pushed_json,
+  "merge_attempted": $merge_attempted_json,
+  "merge_result": "$merge_result",
+  "merge_branch": "$merge_branch",
   "stdout": "$STDOUT_FILE",
   "stderr": "$STDERR_FILE",
   "status_file": "$OUTDIR/status.txt"
