@@ -51,7 +51,7 @@ is_pid_for_script() {
 
 usage() {
   cat <<'USAGE'
-Usage: sh scripts/run.sh [--monitor] <command>
+Usage: sh scripts/run.sh [--monitor] [--yolo] <command>
 
 Commands:
   start           Start the supervisor (background).
@@ -60,6 +60,7 @@ Commands:
 
 Options:
   --monitor, -m   After running the command, stream daemon and supervisor logs and print status lines (runs in foreground).
+  --yolo          Force YOLO mode for supervisor, daemon, and any spawned workers (exports YOLO=true).
 
 Environment:
   CHECK_INTERVAL  Seconds between supervisor checks (default: 30).
@@ -109,11 +110,15 @@ start_supervisor_bg() {
   fi
 }
 
-# Parse optional --monitor flag anywhere in args and rebuild positional params without it
+# Parse optional --monitor and --yolo flags anywhere in args and rebuild positional params without them
 MONITOR=0
+YOLO_FORCE=0
 for a in "$@"; do
   if [ "$a" = "--monitor" ] || [ "$a" = "-m" ]; then
     MONITOR=1
+  fi
+  if [ "$a" = "--yolo" ]; then
+    YOLO_FORCE=1
   fi
 done
 
@@ -121,6 +126,8 @@ REMAINING=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --monitor|-m)
+      shift;;
+    --yolo)
       shift;;
     -h|--help)
       usage;;
@@ -137,6 +144,12 @@ if [ -n "$REMAINING" ]; then
   eval set -- $REMAINING
 else
   set --
+fi
+
+# If run.sh was invoked with --yolo, force YOLO mode for this process and export to children
+if [ "${YOLO_FORCE:-0}" -eq 1 ]; then
+  YOLO=true
+  export YOLO
 fi
 
 cleanup_and_exit() {
