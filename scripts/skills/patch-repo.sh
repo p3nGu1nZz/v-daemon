@@ -59,6 +59,8 @@ printf '%s\n' "$0 $*" >"$CMD_FILE"
 # Capture all subsequent stdout/stderr to files while still showing to console
 # Use process substitution with tee (bash required)
 exec > >(tee -a "$STDOUT_FILE") 2> >(tee -a "$STDERR_FILE" >&2)
+args_string="$(printf '%s ' "$@" | sed -e 's/"/\\"/g')"
+pushed_json=false
 
 echo "patch-repo starting: $TIMESTAMP"
 
@@ -71,18 +73,11 @@ if git diff --cached --quiet; then
   git --no-pager status >"$OUTDIR/status.txt" || true
   commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
   branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-  # Precompute args string and JSON-friendly pushed boolean to avoid nested command substitutions
-args_string="$(printf '%s ' "$@" | sed -e 's/"/\"/g')"
-if [ "$pushed" = true ]; then
-  pushed_json=true
-else
-  pushed_json=false
-fi
-cat >"$OUTDIR/report.json" <<JSON
+  cat >"$OUTDIR/report.json" <<JSON
 {
   "timestamp": "$TIMESTAMP",
   "script": "scripts/skills/patch-repo.sh",
-  "args": "$(printf '%s ' "$@" | sed -e "s/\\"/\\\\\"/g")",
+  "args": "$args_string",
   "exit_code": 0,
   "commit": "$commit",
   "branch": "$branch",
@@ -102,7 +97,7 @@ if ! tree_hash=$(git write-tree 2>/dev/null); then
 {
   "timestamp": "$TIMESTAMP",
   "script": "scripts/skills/patch-repo.sh",
-  "args": "$(printf '%s ' "$@" | sed -e "s/\\"/\\\\\"/g")",
+  "args": "$args_string",
   "exit_code": 1,
   "error": "failed to write tree"
 }
@@ -121,7 +116,7 @@ if ! git commit -m "$commit_msg"; then
 {
   "timestamp": "$TIMESTAMP",
   "script": "scripts/skills/patch-repo.sh",
-  "args": "$(printf '%s ' "$@" | sed -e "s/\\"/\\\\\"/g")",
+  "args": "$args_string",
   "exit_code": 1,
   "error": "git commit failed"
 }
@@ -170,7 +165,7 @@ cat >"$OUTDIR/report.json" <<JSON
 {
   "timestamp": "$TIMESTAMP",
   "script": "scripts/skills/patch-repo.sh",
-  "args": "$(printf '%s ' "$@" | sed -e "s/\\"/\\\\\"/g")",
+  "args": "$args_string",
   "exit_code": $exit_code,
   "commit": "$commit",
   "branch": "$branch",
