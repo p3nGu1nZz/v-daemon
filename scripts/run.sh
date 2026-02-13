@@ -597,7 +597,7 @@ monitor_foreground() {
 
   # Background refresher to update an anchored status line with uptime/errors/swarm state
   monitor_start_ts=$(date +%s)
-  MONITOR_INTERVAL="${MONITOR_INTERVAL:-5}"
+  MONITOR_INTERVAL="${MONITOR_INTERVAL:-1}"
   # Record whether monitor started while swarm was active; only auto-exit if it was
   INITIAL_ACTIVE=0
   if [ "$SWARM_STATUS" != "swarm offline" ]; then
@@ -607,6 +607,7 @@ monitor_foreground() {
   LAST_STATUS_LINE=""
   LAST_LOG_MTIME=""
   LAST_ERROR_COUNT=0
+  CURSOR_TOG=1
 
   refresh_status_loop() {
     while :; do
@@ -847,11 +848,26 @@ monitor_foreground() {
 
           # print input prompt line above the anchored status
           if [ "$FOCUS" = "cmd" ]; then
-            prompt="(cmd) > $BUF"
+            prefix='$'
           else
-            prompt="(tree) > $BUF"
+            prefix='(tree)'
+          fi
+
+          # Build cursor (blink state toggled each refresh)
+          if [ "$FOCUS" = "cmd" ]; then
+            if [ "${CURSOR_TOG:-1}" -eq 1 ]; then
+              cursor="${INV} ${RESET}"
+            else
+              cursor=' '
+            fi
+            prompt="${prefix} > ${BUF}${cursor}"
+          else
+            prompt="${prefix} > ${BUF}"
           fi
           printf '\033[2K\r%s\n' "$prompt" >&2
+
+          # toggle cursor for next draw
+          CURSOR_TOG=$((1 - ${CURSOR_TOG:-1}))
 
           # print final status line (no newline) and restore cursor
           printf '\033[2K\r%s\033[u' "$status_line" >&2
