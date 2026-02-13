@@ -4,6 +4,17 @@ v-daemon is a small supervisor/daemon and development harness for exercising a D
 
 Status: early development — see TODO.md for planned milestones and tasks.
 
+Design & architecture
+- See ./doc/architecture.md for an architecture overview and project vision.
+- Runtime settings: ./config/settings.toml
+- Key scripts:
+  - scripts/setup.sh — install dependencies and prepare the environment
+  - scripts/check.sh — run repository checks and validations
+  - scripts/run.sh — run the supervisor/daemon (development harness)
+  - scripts/lib/ — helper libraries used by the other scripts
+
+Notes: Native C/C++ builds are optional; see scripts/setup.sh for instructions to fetch dependencies (external/Catch2) and to build with CMake + Ninja.
+
 Scripts are implemented as POSIX sh (/usr/bin/env sh); runtime settings are in ./config/settings.toml.
 
 Requirements

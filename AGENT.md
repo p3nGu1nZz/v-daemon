@@ -8,6 +8,13 @@ Skills
 
 See ./.github/skills/run-project/SKILL.md for details.
 
+Agent run commands (examples)
+- Setup environment: sh scripts/setup.sh --yes
+- Run checks: sh scripts/check.sh
+- Run supervisor/harness: sh scripts/run.sh [--monitor]
+
+Agents performing runs should capture exit codes and collect logs (logs/) and runtime artifacts (run/) for reporting. Refer to README.md and ./doc/architecture.md for architecture and design context.
+
 Notes
 
 This AGENT.md is intended to be human- and agent-readable. Keep it updated as run scripts change so automated helpers can reliably reproduce developer workflows.
