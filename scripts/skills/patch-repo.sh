@@ -72,12 +72,81 @@ echo "patch-repo starting: $TIMESTAMP"
 echo "Staging all changes..."
 git add .
 
-# If there is nothing staged, exit (but still write status and report)
+# If there is nothing staged, check for unpushed local commits and attempt to push them
 if git diff --cached --quiet; then
-  echo "No staged changes to commit. Nothing to do."
+  echo "No staged changes to commit."
   git --no-pager status >"$OUTDIR/status.txt" || true
   commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
   branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+
+  # Detect if local branch is ahead of upstream using git status parsing
+  status_line="$(git status --porcelain --branch --untracked-files=no 2>/dev/null | sed -n '1p' || true)"
+  ahead=0
+  if echo "$status_line" | grep -q 'ahead'; then
+    ahead="$(echo "$status_line" | sed -n 's/.*ahead \([0-9]\+\).*/\1/p')"
+  fi
+
+  if [ -n "$ahead" ] && [ "$ahead" -gt 0 ]; then
+    echo "Local branch '$branch' is ahead by $ahead commit(s); attempting to push..."
+    current_branch="$branch"
+    upstream="$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || true)"
+    MAX_RETRIES=3
+    attempt=1
+    pushed=false
+    while [ $attempt -le $MAX_RETRIES ]; do
+      if [ -z "$upstream" ] && [ $attempt -eq 1 ]; then
+        echo "No upstream configured for branch '$current_branch'. Pushing and setting upstream to origin/$current_branch..."
+        if git push -u origin "$current_branch"; then
+          pushed=true
+          break
+        else
+          echo "git push attempt $attempt failed." >&2
+        fi
+      else
+        echo "Pushing to upstream (attempt $attempt)..."
+        if git push; then
+          pushed=true
+          break
+        else
+          echo "git push attempt $attempt failed." >&2
+        fi
+      fi
+      attempt=$((attempt+1))
+      sleep 1
+    done
+
+    git --no-pager status >"$OUTDIR/status.txt" || true
+    commit="$(git rev-parse --short HEAD 2>/dev/null || true)"
+    branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+    if [ "$pushed" = true ]; then
+      pushed_json=true
+      exit_code=0
+    else
+      pushed_json=false
+      exit_code=1
+    fi
+    cat >"$OUTDIR/report.json" <<JSON
+{
+  "timestamp": "$TIMESTAMP",
+  "script": "scripts/skills/patch-repo.sh",
+  "args": "$args_string",
+  "exit_code": $exit_code,
+  "commit": "$commit",
+  "branch": "$branch",
+  "pushed": $pushed_json,
+  "status_file": "$OUTDIR/status.txt"
+}
+JSON
+    if [ "$pushed" = true ]; then
+      echo "Pushed commit: $(git rev-parse --short HEAD)"
+      exit 0
+    else
+      echo "Created commit $commit (push failed)."
+      exit 1
+    fi
+  fi
+
+  # not ahead and no staged changes
   cat >"$OUTDIR/report.json" <<JSON
 {
   "timestamp": "$TIMESTAMP",
@@ -89,6 +158,7 @@ if git diff --cached --quiet; then
   "message": "no changes"
 }
 JSON
+  echo "No staged changes to commit. Nothing to do."
   exit 0
 fi
 
