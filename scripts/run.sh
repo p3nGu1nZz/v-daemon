@@ -76,9 +76,9 @@ start_supervisor_bg() {
   while [ $waited -lt $TIMEOUT ]; do
     if [ -f "$SUP_PIDFILE" ]; then
       SUPPID=$(cat "$SUP_PIDFILE" 2>/dev/null || true)
-      if is_pid_for_script "$SUPPID" "$SCRIPT_DIR/lib/supervise.sh"; then
+      if [ -n "$SUPPID" ] && is_pid_for_script "$SUPPID" "$SCRIPT_DIR/lib/supervise.sh"; then
         if grep -q "Supervisor: started" "$SUP_LOGFILE" 2>/dev/null; then
-          echo "Started supervisor (PID $SUPPID)" >&2
+          printf 'Started supervisor (PID %s)\n' "$SUPPID" >&2
           return
         fi
       fi
@@ -89,11 +89,11 @@ start_supervisor_bg() {
 
   # Fallback: report background PID if supervise didn't populate pidfile
   if [ -n "$SUPPID" ]; then
-    echo "Started supervisor (PID $SUPPID)" >&2
+    printf 'Started supervisor (PID %s)\n' "$SUPPID" >&2
   else
-    echo "Started supervisor (PID $BG_PID) (SUP_PIDFILE not found)" >&2
+    printf 'Started supervisor (PID %s) (SUP_PIDFILE not found)\n' "$BG_PID" >&2
     # write bg pidfile for convenience
-    echo "$BG_PID" >"$SUP_PIDFILE" || true
+    printf '%s\n' "$BG_PID" >"$SUP_PIDFILE" || true
   fi
 }
 
@@ -283,41 +283,37 @@ stop_all() {
 }
 
 monitor_foreground() {
-  echo "Monitor: streaming daemon and supervisor logs (press Ctrl-C to exit)" >&2
-  touch "$LOGFILE" "$SUP_LOGFILE"
-
-  # Start tails: daemon directly (no extra prefix), supervisor prefixed only when missing
-  tail -n 0 -F "$LOGFILE" 2>/dev/null &
-  TAIL_D=$!
-  tail -n 0 -F "$SUP_LOGFILE" 2>/dev/null | sed '/\[SUPERVISOR\]/! s/^/[SUPERVISOR] /' &
-  TAIL_S=$!
-  touch "$DIRECTOR_LOG"
-  tail -n 0 -F "$DIRECTOR_LOG" 2>/dev/null &
-  TAIL_DIR=$!
+  printf 'Monitor: streaming daemon and supervisor logs (press Ctrl-C to exit)\n' >&2
+  touch "$LOGFILE" "$SUP_LOGFILE" "$DIRECTOR_LOG"
 
   # Ensure Ctrl-C triggers clean shutdown of supervisor and daemon
   trap 'cleanup_and_exit' INT TERM
 
-  # Print a single system status line at monitor start
+  # Print a single system status line at monitor start (before starting tails to avoid interleaving)
   SUP_RUNNING="not running"
   DAEMON_RUNNING="not running"
   if [ -f "$SUP_PIDFILE" ]; then
     SUPPID=$(cat "$SUP_PIDFILE" 2>/dev/null || true)
-    if [ -n "$SUPPID" ]; then
-      if is_pid_for_script "$SUPPID" "$SCRIPT_DIR/lib/supervise.sh" || kill -0 "$SUPPID" 2>/dev/null; then
-        SUP_RUNNING="running (PID $SUPPID)"
-      fi
+    if [ -n "$SUPPID" ] && ( is_pid_for_script "$SUPPID" "$SCRIPT_DIR/lib/supervise.sh" || ps -p "$SUPPID" >/dev/null 2>&1 ); then
+      SUP_RUNNING="running (PID $SUPPID)"
     fi
   fi
   if [ -f "$DAEMON_PIDFILE" ]; then
     DPID=$(cat "$DAEMON_PIDFILE" 2>/dev/null || true)
-    if [ -n "$DPID" ]; then
-      if is_pid_for_script "$DPID" "$DAEMON" || kill -0 "$DPID" 2>/dev/null; then
-        DAEMON_RUNNING="running (PID $DPID)"
-      fi
+    if [ -n "$DPID" ] && ( is_pid_for_script "$DPID" "$DAEMON" || ps -p "$DPID" >/dev/null 2>&1 ); then
+      DAEMON_RUNNING="running (PID $DPID)"
     fi
   fi
   printf '%s [SYSTEM] Supervisor: %s | Daemon: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$SUP_RUNNING" "$DAEMON_RUNNING" >&2
+
+  # Start tails after printing status so outputs don't interleave with the status line
+  tail -n 0 -F "$LOGFILE" 2>/dev/null &
+  TAIL_D=$!
+  tail -n 0 -F "$SUP_LOGFILE" 2>/dev/null | sed '/\[SUPERVISOR\]/! s/^/[SUPERVISOR] /' &
+  TAIL_S=$!
+  tail -n 0 -F "$DIRECTOR_LOG" 2>/dev/null &
+  TAIL_DIR=$!
+
   # Wait on background tails; trap will handle cleanup on INT/TERM
   wait
 
@@ -326,7 +322,7 @@ monitor_foreground() {
 case "${1:-}" in
   start)
     if [ -f "$SUP_PIDFILE" ] && is_pid_for_script "$(cat "$SUP_PIDFILE")" "$SCRIPT_DIR/lib/supervise.sh"; then
-      echo "Supervisor already running (PID $(cat "$SUP_PIDFILE"))"
+      printf 'Supervisor already running (PID %s)\n' "$(cat \"$SUP_PIDFILE\")" >&2
       exit 0
     fi
     # Rotate logs before starting a fresh supervisor
