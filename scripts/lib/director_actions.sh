@@ -69,7 +69,10 @@ run_autopilot_summary() {
   exec >>"$LOGFILE" 2>&1
 
   prompt_file=$(mktemp "/tmp/director_prompt_${run_ts}.XXXXXX") || prompt_file="/tmp/director_prompt_${run_ts}.$$"
-  cat > "$prompt_file" <<'EOF'
+if [ -f \"$REPO_ROOT/scripts/lib/prompts.sh\" ]; then
+  show_prompt summarize > \"$prompt_file\"
+else
+  cat > \"$prompt_file\" <<'EOF'
 You are an expert code reviewer. Analyze the repository in the current working directory and produce a concise summary (6-12 lines) describing:
 - project purpose
 - main components and key files
@@ -80,6 +83,7 @@ Important: DO NOT attempt to access files on disk or request interactive permiss
 Important: Do NOT simulate executing scripts or produce shell session output (for example, lines beginning with "$" or "✗") and do NOT include permission errors or interactive permission requests in your output. If checks would normally be executed, describe the expected checks and outcomes in plain text without simulating command execution.
 Return only the concise summary lines; do not add debugging, step-by-step actions, or request user input.
 EOF
+fi
 
   # Build a small repository snapshot to include with the prompt so copilot doesn't need filesystem access
   context_file=$(mktemp "/tmp/director_context_${run_ts}.XXXXXX") || context_file="/tmp/director_context_${run_ts}.$$"
@@ -316,8 +320,10 @@ run_autopilot_plan() {
   plan_sanitized="$out_dir/plan_sanitized.txt"
   plan_tasks="$out_dir/tasks.txt"
   plan_prompt_file=$(mktemp "/tmp/director_plan_prompt_${plan_ts}.XXXXXX") || plan_prompt_file="$out_dir/plan_prompt.txt"
-
-  cat > "$plan_prompt_file" <<'PLANPROMPT'
+if [ -f \"$REPO_ROOT/scripts/lib/prompts.sh\" ]; then
+  show_prompt next > \"$plan_prompt_file\"
+else
+  cat > \"$plan_prompt_file\" <<'PLANPROMPT'
 You are an expert project manager and code reviewer.
 Given the repository summary below and the provided REPO SNAPSHOT, produce an itemized, prioritized list of clear, actionable todo items for maintainers to work on next.
 - Output as a plain list where each line begins with "- " and is a concise task title (5-12 words), optionally followed by a short 1-sentence description after a colon.
@@ -327,6 +333,7 @@ Given the repository summary below and the provided REPO SNAPSHOT, produce an it
 - Use only the provided summary and snapshot; do not invent execution traces or simulate running scripts.
 Return only the bullet list.
 PLANPROMPT
+fi
 
   # Build plan input (context + summary + plan instructions)
   cat "$context_file" "$summary_file" "$plan_prompt_file" > "$plan_in" 2>/dev/null || true
