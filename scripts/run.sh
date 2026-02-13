@@ -730,17 +730,17 @@ monitor_foreground() {
         # Only redraw anchored status when it changes to reduce flicker
         if [ "${status_line}" != "${LAST_STATUS_LINE}" ]; then
           # when no tree, print status and leave
-          printf '\\033[s\\033[999B\\033[2K\\r%s\\033[u' "$status_line" >&2
+          printf '\033[s\033[999B\033[2K\r%s\033[u' "$status_line" >&2
           LAST_STATUS_LINE="$status_line"
         fi
       else
         # Only redraw when status or tree count changes
         if [ "${status_line}" != "${LAST_STATUS_LINE}" ] || [ "$tree_count" != "${LAST_TREE_COUNT:-}" ]; then
           # move to bottom and up by (tree_count+1) lines to leave room for an input prompt
-          printf '\\033[s\\033[999B' >&2
+          printf '\033[s\033[999B' >&2
           move_up=$((tree_count + 1))
           if [ "$move_up" -gt 0 ]; then
-            printf '\\033[%dA' "$move_up" >&2
+            printf '\033[%dA' "$move_up" >&2
           fi
 
           # read selection, focus, and buffer
@@ -761,12 +761,12 @@ monitor_foreground() {
               sel_prefix='> '
               if [ "$FOCUS" = "tree" ]; then
                 # invert colors for focused selection
-                printf '\\033[2K\\r%s%s%s%s\\033[0m\n' "$prefix" "$sel_prefix" "$INV" "$l" >&2
+                printf '\033[2K\r%s%s%s%s\033[0m\n' "$prefix" "$sel_prefix" "$INV" "$l" >&2
               else
-                printf '\\033[2K\\r%s%s%s\n' "$prefix" "$sel_prefix" "$l" >&2
+                printf '\033[2K\r%s%s%s\n' "$prefix" "$sel_prefix" "$l" >&2
               fi
             else
-              printf '\\033[2K\\r%s%s\n' "$prefix" "$l" >&2
+              printf '\033[2K\r%s%s\n' "$prefix" "$l" >&2
             fi
           done < "$tree_tmp"
 
@@ -776,10 +776,10 @@ monitor_foreground() {
           else
             prompt="(tree) > $BUF"
           fi
-          printf '\\033[2K\\r%s\\n' "$prompt" >&2
+          printf '\033[2K\r%s\n' "$prompt" >&2
 
           # print final status line (no newline) and restore cursor
-          printf '\\033[2K\\r%s\\033[u' "$status_line" >&2
+          printf '\033[2K\r%s\033[u' "$status_line" >&2
           LAST_STATUS_LINE="$status_line"
           LAST_TREE_COUNT="$tree_count"
         fi
