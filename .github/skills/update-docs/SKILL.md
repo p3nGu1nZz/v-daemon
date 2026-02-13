@@ -94,7 +94,7 @@ The skill is intended to be deterministic, non-destructive by default, and to pr
 
 ## Implementation notes
 
-- Recommended helper script: `scripts/skills/update-docs.sh` (should call a safe scanner/transformer). If no helper exists, use this SKILL instruction to implement tooling.
+- Recommended helper script: `scripts/docs.sh` (should call a safe scanner/transformer). If no helper exists, use this SKILL instruction to implement tooling.
 - When generating specs, aim to mirror the runtime layout: `docs/specs/<top-level>/*` -> maps from `scripts/` and `src/` directories.
 - Provide small examples in generated spec files to make them actionable for contributors.
 

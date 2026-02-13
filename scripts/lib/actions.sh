@@ -13,16 +13,7 @@ if [ -f "$REPO_ROOT/scripts/lib/env.sh" ]; then
   . "$REPO_ROOT/scripts/lib/env.sh"
   env_init "$REPO_ROOT"
 fi
-if [ -f "$REPO_ROOT/scripts/lib/console.sh" ]; then
-  . "$REPO_ROOT/scripts/lib/console.sh"
-fi
-if [ -f "$REPO_ROOT/scripts/lib/logger.sh" ]; then
-  . "$REPO_ROOT/scripts/lib/logger.sh"
-fi
-# Load centralized prompts (prompts.sh) for AI prompt reuse
-if [ -f "$REPO_ROOT/scripts/lib/prompts.sh" ]; then
-  . "$REPO_ROOT/scripts/lib/prompts.sh"
-fi
+# console/logger/prompts are loaded by env_init in scripts/lib/env.sh
 
 # Local summarizer removed; Copilot CLI is required for autopilot summaries.
 

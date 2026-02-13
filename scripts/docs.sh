@@ -4,7 +4,7 @@ set -euo pipefail
 # Embedded manifest data (extracted from previous update-docs.json)
 skill_name="update-docs"
 skill_description="Scans the repo to propose documentation and specification updates, writing docs/AUTOGEN_DOCS.md."
-skill_entrypoint="update-docs.sh"
+skill_entrypoint="docs.sh"
 
 declare -A SKILL_META=( [name]="$skill_name" [description]="$skill_description" [entrypoint]="$skill_entrypoint" )
 

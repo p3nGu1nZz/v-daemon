@@ -14,4 +14,15 @@ env_init() {
   AUDITS_DIR="${AUDITS_DIR:-$REPO_ROOT/audits}"
   mkdir -p "$RUN_DIR" "$LOG_DIR" "$AUDITS_DIR" 2>/dev/null || true
   export REPO_ROOT CONFIG_FILE RUN_DIR LOG_DIR CHECK_INTERVAL AUDITS_DIR
+  # Load console, logger, and centralized prompts so callers get consistent helpers
+  if [ -f "$REPO_ROOT/scripts/lib/console.sh" ]; then
+    . "$REPO_ROOT/scripts/lib/console.sh"
+  fi
+  if [ -f "$REPO_ROOT/scripts/lib/logger.sh" ]; then
+    . "$REPO_ROOT/scripts/lib/logger.sh"
+  fi
+  # Load centralized prompts (prompts.sh) for AI prompt reuse
+  if [ -f "$REPO_ROOT/scripts/lib/prompts.sh" ]; then
+    . "$REPO_ROOT/scripts/lib/prompts.sh"
+  fi
 }
