@@ -1,6 +1,6 @@
 # v-daemon
 
-v-daemon is a lightweight daemon project. This repository currently provides POSIX shell helper scripts to build, check, and run the daemon; C++ sources and a CMake-based build may be added under /src later. Use scripts/setup.sh to fetch Catch2 into external/Catch2 for unit tests, and scripts/build.sh to run CMake and Ninja when project CMake files are present.
+v-daemon is a lightweight daemon project and the dev harness for the Director/Worker self-improvement loop ("DirectorDev"). This repository provides POSIX shell helper scripts to build, check, and run the daemon and director agent; C++ sources and a CMake-based build may be added under /src later. Use scripts/setup.sh to fetch Catch2 into external/Catch2 for unit tests, and scripts/build.sh to run CMake and Ninja when project CMake files are present.
 
 ## Requirements
 

@@ -13,22 +13,24 @@ Build an autonomous daemon that spawns a director agent to coordinate worker age
   - [ ] Provide local run script (scripts/run.sh) and basic config sample (config/example.yaml).
 - [ ] Implement process supervisor to spawn the director agent as a child process (or managed thread).
 - [ ] Add CLI flags for start/stop/status and a clean shutdown path.
+- [ ] Add a process controller utility (scripts/lib/process.sh) to register/start/stop managed processes and track run/*.pid files.
 
-**Acceptance criteria:** daemon binary starts, writes logs, spawns the director process, and performs a clean shutdown.
+**Acceptance criteria:** daemon binary starts, writes logs, spawns the director process, and performs a clean shutdown that also stops the director.
 
 ---
 
 ### Milestone 2 — Director & Worker basics
 - [ ] Director agent core:
-  - [ ] Define director API/RPC (gRPC or HTTP) used by daemon and workers.
+  - [ ] Implement a bash heartbeat Director (`dev/harness/director.sh`) that can be started/adopted by the daemon.
+  - [ ] Define director API/RPC (lightweight JSON-over-UDS or HTTP) used by daemon and workers.
   - [ ] Implement spawn/stop logic for worker processes and a lightweight registry of active workers.
-  - [ ] Implement heartbeat and basic health checks for workers.
+  - [ ] Implement heartbeat and basic health checks for workers and emit structured director heartbeats into `dev/audits/director.log`.
 - [ ] Worker agent:
   - [ ] Implement a worker stub that registers with the director and sends heartbeats.
   - [ ] Implement a simple "work" task (e.g., run a shell command or simulated job) and report status back to director.
-- [ ] Integration test: Start daemon → director spawns N workers → workers report ready → director assigns a job → workers complete job.
+- [ ] Integration test: Start supervisor → daemon → director spawns N workers → workers report ready → director assigns a job → workers complete job.
 
-**Acceptance criteria:** Director can spawn workers and coordinate a complete job end-to-end.
+**Acceptance criteria:** Director can spawn workers and coordinate a complete job end-to-end, storing audit bundles under `dev/audits/`.
 
 ---
 
