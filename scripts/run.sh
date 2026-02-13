@@ -304,6 +304,18 @@ stop_all() {
       done
     fi
 
+    # Kill any orphaned worker processes under this repo
+    PIDS="$(ps_fallback pid,args | awk 'tolower($0) ~ /worker/ {print $1}')"
+    if [ -n "$PIDS" ]; then
+      for p in $PIDS; do
+        if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
+          echo "Killing orphaned worker process PID $p" >&2
+          kill_pid_and_children "$p" || true
+          FOUND=1
+        fi
+      done
+    fi
+
     if [ $FOUND -eq 0 ]; then
       break
     fi

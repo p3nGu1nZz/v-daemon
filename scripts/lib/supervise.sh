@@ -15,6 +15,10 @@ if [ -f "$REPO_ROOT/scripts/lib/env.sh" ]; then
   env_init "$REPO_ROOT"
 fi
 # console/logger/prompts are loaded by env_init in scripts/lib/env.sh
+# Source process helper (provides ps_fallback, proc_is_running, etc.) if available
+if [ -f "$SCRIPT_DIR/process.sh" ]; then
+  . "$SCRIPT_DIR/process.sh"
+fi
 DAEMON="${SCRIPT_DIR}/daemon.sh"
 mkdir -p "$RUN_DIR" "$LOG_DIR"
 DAEMON_PIDFILE="${DAEMON_PIDFILE:-$RUN_DIR/v-daemon.pid}"
