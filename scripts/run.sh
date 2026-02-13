@@ -3,9 +3,11 @@
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-DAEMON="${SCRIPT_DIR}/daemon.sh"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+DAEMON="${SCRIPT_DIR}/lib/daemon.sh"
 PIDFILE="/tmp/v-daemon.pid"
-LOGFILE="${SCRIPT_DIR}/daemon.log"
+mkdir -p "$REPO_ROOT/logs"
+LOGFILE="${REPO_ROOT}/logs/daemon.log"
 
 usage() {
   echo "Usage: $0 {start|stop|status|run-foreground}"

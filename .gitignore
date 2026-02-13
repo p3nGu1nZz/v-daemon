@@ -42,3 +42,6 @@
 
 # Vendored dependencies
 /external/
+
+# Generated logs
+/logs/
