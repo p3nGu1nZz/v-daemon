@@ -74,6 +74,12 @@ mkdir -p "$REPO_ROOT/logs"
 LOGFILE="${REPO_ROOT}/logs/director.log"
 
 printf '%s [AGENT-DIRECTOR] director agent starting (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$$" >>"$LOGFILE"
+# Source director actions (if present) and run autopilot summary asynchronously
+if [ -f "$SCRIPT_DIR/director_actions.sh" ]; then
+  . "$SCRIPT_DIR/director_actions.sh"
+  # run in background (non-blocking) so director heartbeat continues
+  run_autopilot_summary >/dev/null 2>&1 &
+fi
 
 # Main loop: emit heartbeat and placeholder for coordination logic
 while true; do
