@@ -3,9 +3,9 @@
 set -eu
 
 usage() {
-  echo "Usage: $0 [--yes|-y|--ci|--check|--clean|--directive \"<string>\"]"
+  echo "Usage: $0 [--yes|-y|--check|--clean|--directive \"<string>\"]"
   echo "Installs required packages (cmake, ninja, a C++ toolchain, git) for common Linux distros."
-  echo "Use --ci to run in CI mode (non-interactive); will skip or mock certain deps."
+  echo "Set CI=1 in the environment to run in CI mode (non-interactive); will skip or mock certain deps."
   echo "Use --check to run repository checks only (no installs)."
   echo "Use --clean to remove generated artifacts (audits, logs, run)."
   echo "Use --directive \"<string>\" to update config/settings.toml with the prime directive for agents and commit the change via scripts/skills/patch-repo.sh."
@@ -140,7 +140,6 @@ DIRECTIVE_ARG=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -y|--yes) FORCE=1; shift;;
-    --ci) CI_MODE=1; shift;;
     --check) CHECK_ONLY=1; shift;;
     --clean) CLEAN=1; shift;;
     --directive) shift; DIRECTIVE_ARG="$1"; shift;;
@@ -157,6 +156,11 @@ fi
 if [ "$CHECK_ONLY" -eq 1 ]; then
   run_checks
   exit 0
+fi
+
+# Detect CI from standard CI environment variable if present
+if [ -n "${CI:-}" ] && [ "${CI}" != "0" ]; then
+  CI_MODE=1
 fi
 
 if [ "${CI_MODE:-0}" -eq 1 ]; then
