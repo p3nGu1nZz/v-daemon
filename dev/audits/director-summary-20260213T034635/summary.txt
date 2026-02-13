@@ -6,3 +6,6 @@ Running repository checks (scripts/check.sh) to gather baseline and identify req
   $ sh scripts/check.sh
   Permission denied and could not request permission from user
 
+✗ Read scripts/check.sh
+  Permission denied and could not request permission from user
+
