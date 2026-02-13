@@ -12,6 +12,24 @@ LOGFILE="${REPO_ROOT}/logs/daemon.log"
 SUP_LOGFILE="${REPO_ROOT}/logs/supervisor.log"
 CHECK_INTERVAL="${CHECK_INTERVAL:-30}"
 
+# Helper: verify that a PID corresponds to a running process whose args contain the expected script path
+is_pid_for_script() {
+  pid="$1"
+  script="$2"
+  if [ -z "$pid" ]; then
+    return 1
+  fi
+  if ! kill -0 "$pid" 2>/dev/null; then
+    return 1
+  fi
+  # Get the command line for the pid and check for the script path
+  cmdline="$(ps -p "$pid" -o args= 2>/dev/null || true)"
+  if [ -n "$cmdline" ] && echo "$cmdline" | grep -F -q "$script"; then
+    return 0
+  fi
+  return 1
+}
+
 usage() {
   cat <<'USAGE'
 Usage: sh scripts/run.sh [--monitor] <command>
@@ -46,7 +64,7 @@ start_supervisor_bg() {
   while [ $waited -lt $TIMEOUT ]; do
     if [ -f "$SUP_PIDFILE" ]; then
       SUPPID=$(cat "$SUP_PIDFILE" 2>/dev/null || true)
-      if [ -n "$SUPPID" ] && kill -0 "$SUPPID" 2>/dev/null; then
+      if is_pid_for_script "$SUPPID" "$SCRIPT_DIR/lib/supervise.sh"; then
         if grep -q "Supervisor: started" "$SUP_LOGFILE" 2>/dev/null; then
           echo "Started supervisor (PID $SUPPID)"
           return
@@ -218,11 +236,17 @@ monitor_foreground() {
   # Print a single system status line at monitor start
   SUP_RUNNING="not running"
   DAEMON_RUNNING="not running"
-  if [ -f "$SUP_PIDFILE" ] && kill -0 "$(cat "$SUP_PIDFILE")" 2>/dev/null; then
-    SUP_RUNNING="running (PID $(cat "$SUP_PIDFILE"))"
+  if [ -f "$SUP_PIDFILE" ]; then
+    SUPPID=$(cat "$SUP_PIDFILE" 2>/dev/null || true)
+    if is_pid_for_script "$SUPPID" "$SCRIPT_DIR/lib/supervise.sh"; then
+      SUP_RUNNING="running (PID $SUPPID)"
+    fi
   fi
-  if [ -f "$DAEMON_PIDFILE" ] && kill -0 "$(cat "$DAEMON_PIDFILE")" 2>/dev/null; then
-    DAEMON_RUNNING="running (PID $(cat "$DAEMON_PIDFILE"))"
+  if [ -f "$DAEMON_PIDFILE" ]; then
+    DPID=$(cat "$DAEMON_PIDFILE" 2>/dev/null || true)
+    if is_pid_for_script "$DPID" "$DAEMON"; then
+      DAEMON_RUNNING="running (PID $DPID)"
+    fi
   fi
   printf '%s [SYSTEM] Supervisor: %s | Daemon: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$SUP_RUNNING" "$DAEMON_RUNNING"
   # Wait on background tails; trap will handle cleanup on INT/TERM
