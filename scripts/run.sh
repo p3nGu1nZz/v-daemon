@@ -361,6 +361,12 @@ monitor_foreground() {
 
   # Background refresher to update an anchored status line with uptime/errors/swarm state
   monitor_start_ts=$(date +%s)
+  # Record whether monitor started while swarm was active; only auto-exit if it was
+  INITIAL_ACTIVE=0
+  if [ "$SWARM_STATUS" != "swarm offline" ]; then
+    INITIAL_ACTIVE=1
+  fi
+
   refresh_status_loop() {
     while :; do
       now_ts=$(date +%s)
@@ -404,6 +410,18 @@ monitor_foreground() {
       status_line="[SYSTEM] Uptime: $uptime_fmt | errors: $ERRORS | $SWARM_STATUS"
       # Save cursor, move to bottom, clear line, print status, restore cursor
       printf '\033[s\033[999B\033[2K\r%s\033[u' "$status_line" >&2
+
+      # If the swarm was active when the monitor started but is now offline, exit monitor gracefully
+      if [ "$INITIAL_ACTIVE" -eq 1 ] && [ "$SWARM_STATUS" = "swarm offline" ]; then
+        printf '%s [SYSTEM] Detected external shutdown; exiting monitor\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >&2
+        # Kill tails to allow monitor to exit cleanly
+        [ -n "${TAIL_D:-}" ] && kill "$TAIL_D" 2>/dev/null || true
+        [ -n "${TAIL_S:-}" ] && kill "$TAIL_S" 2>/dev/null || true
+        [ -n "${TAIL_DIR:-}" ] && kill "$TAIL_DIR" 2>/dev/null || true
+        # Clear anchored status line with final state
+        printf '\033[s\033[999B\033[2K\r%s\033[u' "[SYSTEM] swarm offline -- monitor exiting" >&2
+        break
+      fi
 
       sleep "${CHECK_INTERVAL:-5}"
     done
