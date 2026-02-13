@@ -27,12 +27,15 @@ Build a recursive, autonomous development engine (Director) that can summarize, 
 
 ## Immediate priorities
 
-1. Ensure `scripts/setup.sh` creates `run/` and `logs/`, and make `scripts/run.sh` support `start`/`stop`/`status`/`--monitor`.
-2. Add director config keys to `config/settings.toml`.
-3. Create `scripts/lib/director.sh` skeleton: `summarize -> next-steps -> select task -> patcher -> report`.
-4. Implement minimal `summarize` and `next-steps` scripts that write into `run/skills`.
-5. Implement `patcher.sh` supporting dry-run and commit modes (guarded by `director.allow_execute`).
-6. Update `README.md`, `AGENT.md`, and relevant SKILL.md files to reflect runtime flags and safety controls.
+1. Ensure `scripts/setup.sh` creates `run/` and `logs/`, and add `scripts/setup.sh --clean` to remove generated artifacts (e.g., `audits/`, `logs/`, `run/`).
+2. Make `scripts/run.sh` support `start`/`stop`/`status`/`--monitor` and verify supervisor+daemon lifecycle.
+3. Add director config keys to `config/settings.toml`.
+4. Create `scripts/lib/director.sh` skeleton: `summarize -> next-steps -> select task -> patcher -> report`.
+5. Implement minimal `summarize` and `next-steps` scripts that write into `run/skills`.
+6. Implement `patcher.sh` supporting dry-run and commit modes (guarded by `director.allow_execute`) and ensure `scripts/skills/patch-repo.sh` pushes by default and reports failures clearly.
+7. Centralize LLM prompts into `scripts/lib/prompts.sh` and update actions to use `show_prompt` (avoid inline prompts).
+8. Ensure `docs/specs/_template.md` exists and test `scripts/docs.sh build` (compile guide and optional PDF via pandoc).
+9. Update `README.md`, `AGENT.md`, and relevant SKILL.md files to reflect runtime flags and safety controls.
 
 ## Safety
 
