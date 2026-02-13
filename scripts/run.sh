@@ -104,35 +104,102 @@ cleanup_and_exit() {
   [ -n "${TAIL_D:-}" ] && kill "$TAIL_D" 2>/dev/null || true
   [ -n "${TAIL_S:-}" ] && kill "$TAIL_S" 2>/dev/null || true
 
-  # Stop supervisor if running
-  if [ -f "$SUP_PIDFILE" ]; then
-    SUPPID=$(cat "$SUP_PIDFILE" 2>/dev/null || true)
-    if [ -n "$SUPPID" ] && kill -0 "$SUPPID" 2>/dev/null; then
-      echo "Stopping supervisor (PID $SUPPID)" >&2
-      kill "$SUPPID" 2>/dev/null || true
-      sleep 1
-      if kill -0 "$SUPPID" 2>/dev/null; then
-        kill -TERM "$SUPPID" 2>/dev/null || kill -9 "$SUPPID" 2>/dev/null || true
-      fi
-    fi
-    rm -f "$SUP_PIDFILE" 2>/dev/null || true
-  fi
-
-  # Stop daemon if running
-  if [ -f "$DAEMON_PIDFILE" ]; then
-    DPID=$(cat "$DAEMON_PIDFILE" 2>/dev/null || true)
-    if [ -n "$DPID" ] && kill -0 "$DPID" 2>/dev/null; then
-      echo "Stopping daemon (PID $DPID)" >&2
-      kill "$DPID" 2>/dev/null || true
-      sleep 1
-      if kill -0 "$DPID" 2>/dev/null; then
-        kill -TERM "$DPID" 2>/dev/null || kill -9 "$DPID" 2>/dev/null || true
-      fi
-    fi
-    rm -f "$DAEMON_PIDFILE" 2>/dev/null || true
-  fi
+  # Try to stop supervisor/daemon processes and any orphans
+  stop_all
 
   exit 130
+}
+
+stop_all() {
+  MAX_ATTEMPTS=10
+  ATTEMPT=0
+  while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+    FOUND=0
+
+    # Stop supervisor via pidfile
+    if [ -f "$SUP_PIDFILE" ]; then
+      SUPPID=$(cat "$SUP_PIDFILE" 2>/dev/null || true)
+      if [ -n "$SUPPID" ] && kill -0 "$SUPPID" 2>/dev/null; then
+        echo "Stopping supervisor (PID $SUPPID)" >&2
+        kill "$SUPPID" 2>/dev/null || true
+        sleep 0.2
+        if kill -0 "$SUPPID" 2>/dev/null; then
+          kill -TERM "$SUPPID" 2>/dev/null || kill -9 "$SUPPID" 2>/dev/null || true
+        fi
+      fi
+      rm -f "$SUP_PIDFILE" 2>/dev/null || true
+      FOUND=1
+    fi
+
+    # Kill any orphaned supervise.sh processes under this repo
+    PIDS="$(ps -eo pid,args | awk -v pat=\"$SCRIPT_DIR/lib/supervise.sh\" '$0 ~ pat {print $1}')"
+    if [ -n "$PIDS" ]; then
+      for p in $PIDS; do
+        if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
+          echo "Killing orphaned supervisor process PID $p" >&2
+          kill "$p" 2>/dev/null || true
+          WAITED=0
+          while kill -0 "$p" 2>/dev/null && [ $WAITED -lt 15 ]; do
+            sleep 0.2
+            WAITED=$((WAITED+1))
+          done
+          if kill -0 "$p" 2>/dev/null; then
+            kill -9 "$p" 2>/dev/null || true
+          else
+            echo "Stopped orphaned supervisor process PID $p" >&2
+          fi
+          FOUND=1
+        fi
+      done
+    fi
+
+    # Stop daemon via pidfile
+    if [ -f "$DAEMON_PIDFILE" ]; then
+      DPID=$(cat "$DAEMON_PIDFILE" 2>/dev/null || true)
+      if [ -n "$DPID" ] && kill -0 "$DPID" 2>/dev/null; then
+        echo "Stopping daemon (PID $DPID)" >&2
+        kill "$DPID" 2>/dev/null || true
+        sleep 0.2
+        if kill -0 "$DPID" 2>/dev/null; then
+          kill -TERM "$DPID" 2>/dev/null || kill -9 "$DPID" 2>/dev/null || true
+        fi
+      fi
+      rm -f "$DAEMON_PIDFILE" 2>/dev/null || true
+      FOUND=1
+    fi
+
+    # Kill any orphaned daemon processes under this repo
+    PIDS="$(ps -eo pid,args | awk -v pat=\"$DAEMON\" '$0 ~ pat {print $1}')"
+    if [ -n "$PIDS" ]; then
+      for p in $PIDS; do
+        if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
+          echo "Killing orphaned daemon process PID $p" >&2
+          kill "$p" 2>/dev/null || true
+          WAITED=0
+          while kill -0 "$p" 2>/dev/null && [ $WAITED -lt 15 ]; do
+            sleep 0.2
+            WAITED=$((WAITED+1))
+          done
+          if kill -0 "$p" 2>/dev/null; then
+            kill -9 "$p" 2>/dev/null || true
+          else
+            echo "Stopped orphaned daemon process PID $p" >&2
+          fi
+          FOUND=1
+        fi
+      done
+    fi
+
+    if [ $FOUND -eq 0 ]; then
+      break
+    fi
+    ATTEMPT=$((ATTEMPT+1))
+    sleep 0.2
+  done
+
+  if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
+    echo "Warning: some supervisor/daemon processes may still be running after $MAX_ATTEMPTS attempts" >&2
+  fi
 }
 
 monitor_foreground() {
@@ -179,74 +246,8 @@ case "${1:-}" in
     fi
     ;;
   stop)
-    # Stop supervisor via pidfile if present
-    if [ -f "$SUP_PIDFILE" ]; then
-      SUPPID=$(cat "$SUP_PIDFILE")
-      if kill "$SUPPID" 2>/dev/null; then
-        echo "Stopped supervisor (PID $SUPPID)"
-      else
-        echo "Failed to stop supervisor; it may not be running"
-      fi
-      rm -f "$SUP_PIDFILE"
-    else
-      echo "Supervisor not running (no pidfile)"
-    fi
-
-    # Also kill any orphaned supervise.sh processes under this repo
-    echo "Looking for orphaned supervisor processes..." >&2
-    PIDS="$(ps -eo pid,args | awk -v pat="$SCRIPT_DIR/lib/supervise.sh" '$0 ~ pat {print $1}')"
-    if [ -n "$PIDS" ]; then
-      for p in $PIDS; do
-        if [ -z "$p" ]; then
-          continue
-        fi
-        if kill -0 "$p" 2>/dev/null; then
-          echo "Stopping orphaned supervisor process PID $p" >&2
-          kill "$p" 2>/dev/null || true
-          # wait up to ~3s (15 * 0.2s) for process to exit
-          WAITED=0
-          while kill -0 "$p" 2>/dev/null && [ $WAITED -lt 15 ]; do
-            sleep 0.2
-            WAITED=$((WAITED+1))
-          done
-          if kill -0 "$p" 2>/dev/null; then
-            echo "Force-killing orphaned supervisor process PID $p" >&2
-            kill -9 "$p" 2>/dev/null || true
-          else
-            echo "Stopped orphaned supervisor process PID $p" >&2
-          fi
-        fi
-      done
-    fi
-
-    # Stop daemon via pidfile if present
-    if [ -f "$DAEMON_PIDFILE" ]; then
-      DPID=$(cat "$DAEMON_PIDFILE")
-      if kill "$DPID" 2>/dev/null; then
-        echo "Stopped daemon (PID $DPID)"
-      else
-        echo "Failed to stop daemon; it may not be running"
-      fi
-      rm -f "$DAEMON_PIDFILE"
-    else
-      echo "Daemon not running (no pidfile)"
-    fi
-
-    # Kill any orphaned daemon processes under this repo
-    echo "Looking for orphaned daemon processes..." >&2
-    PIDS="$(ps -eo pid,args | awk -v pat="$DAEMON" '$0 ~ pat {print $1}')"
-    if [ -n "$PIDS" ]; then
-      for p in $PIDS; do
-        if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
-          echo "Killing orphaned daemon process PID $p" >&2
-          kill "$p" 2>/dev/null || true
-          sleep 1
-          if kill -0 "$p" 2>/dev/null; then
-            kill -TERM "$p" 2>/dev/null || kill -9 "$p" 2>/dev/null || true
-          fi
-        fi
-      done
-    fi
+    # Stopping supervisor and daemon (including any orphaned processes) until none remain
+    stop_all
 
     # Rotate logs after stopping supervisor/daemon
     if [ -x "$SCRIPT_DIR/rotate_logs.sh" ]; then
