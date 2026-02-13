@@ -51,7 +51,7 @@ Recent updates (2026-02-13):
 
 ## Docs and resources
 
-- Architecture: `doc/architecture.md`
+- Architecture: `docs/architecture.md`
 - Agent docs: `AGENT.md` and `.github/skills/`
 - Runtime config: `config/settings.toml`
 
