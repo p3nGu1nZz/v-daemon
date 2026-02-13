@@ -146,6 +146,7 @@ cleanup_and_exit() {
   [ -n "${TAIL_D:-}" ] && kill "$TAIL_D" 2>/dev/null || true
   [ -n "${TAIL_S:-}" ] && kill "$TAIL_S" 2>/dev/null || true
   [ -n "${TAIL_DIR:-}" ] && kill "$TAIL_DIR" 2>/dev/null || true
+  [ -n "${STATUS_PID:-}" ] && kill "$STATUS_PID" 2>/dev/null || true
 
   # Try to stop supervisor/daemon processes and any orphans
   stop_all
@@ -301,7 +302,7 @@ monitor_foreground() {
   # Ensure Ctrl-C triggers clean shutdown of supervisor and daemon
   trap 'cleanup_and_exit' INT TERM
 
-  # Print a single system status line at monitor start (before starting tails to avoid interleaving)
+  # Print an initial system status line (before starting tails to avoid interleaving)
   SUP_RUNNING="not running"
   DAEMON_RUNNING="not running"
   if [ -f "$SUP_PIDFILE" ]; then
@@ -316,7 +317,39 @@ monitor_foreground() {
       DAEMON_RUNNING="running (PID $DPID)"
     fi
   fi
-  printf '%s [SYSTEM] Supervisor: %s | Daemon: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$SUP_RUNNING" "$DAEMON_RUNNING" >&2
+
+  # Compute initial worker count
+  WORKER_COUNT=0
+  if command -v ps_fallback >/dev/null 2>&1; then
+    WORKER_PIDS="$(ps_fallback pid,args 2>/dev/null | awk 'tolower($0) ~ /worker/ {print $1}' | sort -u)"
+  else
+    WORKER_PIDS="$(ps -eo pid,args 2>/dev/null | awk 'tolower($0) ~ /worker/ {print $1}' | sort -u)"
+  fi
+  for wp in $WORKER_PIDS; do
+    if [ -n "$wp" ] && kill -0 "$wp" 2>/dev/null; then
+      WORKER_COUNT=$((WORKER_COUNT+1))
+    fi
+  done
+
+  if [ "$WORKER_COUNT" -gt 0 ] || ([ -f "$SUP_PIDFILE" ] && kill -0 "$(cat \"$SUP_PIDFILE\")" 2>/dev/null); then
+    SWARM_STATUS="swarm running ($WORKER_COUNT workers)"
+  else
+    SWARM_STATUS="swarm offline"
+  fi
+
+  # Initial uptime: prefer daemon pidfile mtime when available
+  UPTIME_FMT="0:00:00"
+  if [ -f "$DAEMON_PIDFILE" ]; then
+    pf_mtime=$(stat -c %Y "$DAEMON_PIDFILE" 2>/dev/null || true)
+    if [ -n "$pf_mtime" ]; then
+      now_ts=$(date +%s)
+      uptime_secs=$((now_ts - pf_mtime))
+      h=$((uptime_secs/3600)); m=$(((uptime_secs%3600)/60)); s=$((uptime_secs%60))
+      UPTIME_FMT=$(printf '%d:%02d:%02d' $h $m $s)
+    fi
+  fi
+
+  printf '%s [SYSTEM] Supervisor: %s | Daemon: %s | Uptime: %s | %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$SUP_RUNNING" "$DAEMON_RUNNING" "$UPTIME_FMT" "$SWARM_STATUS" >&2
 
   # Start tails after printing status so outputs don't interleave with the status line
   tail -n 0 -F "$LOGFILE" 2>/dev/null &
@@ -326,8 +359,62 @@ monitor_foreground() {
   tail -n 0 -F "$DIRECTOR_LOG" 2>/dev/null &
   TAIL_DIR=$!
 
+  # Background refresher to update an anchored status line with uptime/errors/swarm state
+  monitor_start_ts=$(date +%s)
+  refresh_status_loop() {
+    while :; do
+      now_ts=$(date +%s)
+      # Uptime: prefer daemon pidfile mtime, fall back to monitor runtime
+      if [ -f "$DAEMON_PIDFILE" ]; then
+        pf_mtime=$(stat -c %Y "$DAEMON_PIDFILE" 2>/dev/null || true)
+        if [ -n "$pf_mtime" ]; then
+          uptime_secs=$((now_ts - pf_mtime))
+        else
+          uptime_secs=$((now_ts - monitor_start_ts))
+        fi
+      else
+        uptime_secs=$((now_ts - monitor_start_ts))
+      fi
+      h=$((uptime_secs/3600)); m=$(((uptime_secs%3600)/60)); s=$((uptime_secs%60))
+      uptime_fmt=$(printf '%d:%02d:%02d' $h $m $s)
+
+      # Error count from logs (case-insensitive match on error/failed/exception)
+      ERRORS=0
+      ERRORS=$(grep -i -E "error|failed|exception" "$LOGFILE" "$SUP_LOGFILE" "$DIRECTOR_LOG" 2>/dev/null | wc -l || true)
+
+      # Worker count
+      WORKER_COUNT=0
+      if command -v ps_fallback >/dev/null 2>&1; then
+        WORKER_PIDS="$(ps_fallback pid,args 2>/dev/null | awk 'tolower($0) ~ /worker/ {print $1}' | sort -u)"
+      else
+        WORKER_PIDS="$(ps -eo pid,args 2>/dev/null | awk 'tolower($0) ~ /worker/ {print $1}' | sort -u)"
+      fi
+      for wp in $WORKER_PIDS; do
+        if [ -n "$wp" ] && kill -0 "$wp" 2>/dev/null; then
+          WORKER_COUNT=$((WORKER_COUNT+1))
+        fi
+      done
+
+      if [ "$WORKER_COUNT" -gt 0 ] || ([ -f "$SUP_PIDFILE" ] && kill -0 "$(cat \"$SUP_PIDFILE\")" 2>/dev/null); then
+        SWARM_STATUS="swarm running ($WORKER_COUNT workers)"
+      else
+        SWARM_STATUS="swarm offline"
+      fi
+
+      status_line="[SYSTEM] Uptime: $uptime_fmt | errors: $ERRORS | $SWARM_STATUS"
+      # Save cursor, move to bottom, clear line, print status, restore cursor
+      printf '\033[s\033[999B\033[2K\r%s\033[u' "$status_line" >&2
+
+      sleep "${CHECK_INTERVAL:-5}"
+    done
+  }
+  refresh_status_loop & STATUS_PID=$!
+
   # Wait on background tails; trap will handle cleanup on INT/TERM
   wait
+
+  # Ensure status refresher is stopped when tails exit
+  [ -n "${STATUS_PID:-}" ] && kill "$STATUS_PID" 2>/dev/null || true
 
 }
 
