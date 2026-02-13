@@ -147,7 +147,7 @@ ensure_director_running() {
   fi
 
   # Try to adopt any running director matching the script
-  EXIST="$(ps -eo pid,args | awk -v pat=\"$DIRECTOR\" '$0 ~ pat {print $1}')"
+  EXIST="$(ps_fallback pid,args | awk -v pat=\"$DIRECTOR\" '$0 ~ pat {print $1}')"
   for p in $EXIST; do
     if [ -n "$p" ] && is_pid_for_script "$p" "$DIRECTOR"; then
       echo "$p" >"$DIRECTOR_PIDFILE" 2>/dev/null || true

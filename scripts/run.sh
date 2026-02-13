@@ -175,7 +175,7 @@ kill_pid_and_children() {
   while :; do
     prev=$(wc -l <"$tmp" 2>/dev/null || echo 0)
     for pid in $(cat "$tmp"); do
-      for child in $(ps -eo pid,ppid 2>/dev/null | awk -v p="$pid" '$2==p {print $1}'); do
+      for child in $(ps_fallback pid,ppid | awk -v p="$pid" '$2==p {print $1}'); do
         if ! grep -q "^$child$" "$tmp" 2>/dev/null; then
           echo "$child" >>"$tmp"
         fi
@@ -225,7 +225,7 @@ stop_all() {
     fi
 
     # Kill any orphaned supervise.sh processes under this repo
-    PIDS="$(ps -eo pid,args | awk -v pat=\"$SCRIPT_DIR/lib/supervise.sh\" '$0 ~ pat {print $1}')"
+    PIDS="$(ps_fallback pid,args | awk -v pat=\"$SCRIPT_DIR/lib/supervise.sh\" '$0 ~ pat {print $1}')"
     if [ -n "$PIDS" ]; then
       for p in $PIDS; do
         if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
@@ -248,7 +248,7 @@ stop_all() {
     fi
 
     # Kill any orphaned daemon processes under this repo
-    PIDS="$(ps -eo pid,args | awk -v pat=\"$DAEMON\" '$0 ~ pat {print $1}')"
+    PIDS="$(ps_fallback pid,args | awk -v pat=\"$DAEMON\" '$0 ~ pat {print $1}')"
     if [ -n "$PIDS" ]; then
       for p in $PIDS; do
         if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
@@ -271,7 +271,7 @@ stop_all() {
     fi
 
     # Kill any orphaned director processes under this repo
-    PIDS="$(ps -eo pid,args | awk -v pat=\"$DIRECTOR\" '$0 ~ pat {print $1}')"
+    PIDS="$(ps_fallback pid,args | awk -v pat=\"$DIRECTOR\" '$0 ~ pat {print $1}')"
     if [ -n "$PIDS" ]; then
       for p in $PIDS; do
         if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then

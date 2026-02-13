@@ -8,6 +8,19 @@ RUN_DIR="$REPO_ROOT/run"
 LOG_DIR="$REPO_ROOT/logs"
 mkdir -p "$RUN_DIR" "$LOG_DIR"
 
+# Portable ps wrapper: attempt GNU-style 'ps -eo' then BSD/macOS-style 'ps -ax -o' as fallback.
+ps_fallback() {
+  fmt="$1"
+  # prefer GNU-style ps -eo if available
+  if ps -eo "$fmt" >/dev/null 2>&1; then
+    ps -eo "$fmt" 2>/dev/null || true
+  else
+    # fallback to BSD-style ps -ax -o
+    ps -ax -o "$fmt" 2>/dev/null || ps -eo "$fmt" 2>/dev/null || true
+  fi
+}
+
+
 # Check if a pid corresponds to a running process
 proc_is_running() {
   pid="$1"
@@ -121,7 +134,7 @@ proc_kill_tree() {
   while :; do
     prev=$(wc -l <"$tmp" 2>/dev/null || echo 0)
     for pid in $(cat "$tmp"); do
-      for child in $(ps -eo pid,ppid 2>/dev/null | awk -v p="$pid" '$2==p {print $1}'); do
+      for child in $(ps_fallback pid,ppid | awk -v p="$pid" '$2==p {print $1}'); do
         if ! grep -q "^$child$" "$tmp" 2>/dev/null; then
           echo "$child" >>"$tmp"
         fi
