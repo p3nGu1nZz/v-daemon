@@ -370,6 +370,23 @@ case "${1:-}" in
     else
       echo "Daemon not running"
     fi
+    # Count worker processes (case-insensitive match on 'worker' in process args)
+    WORKER_COUNT=0
+    if command -v ps_fallback >/dev/null 2>&1; then
+      WORKER_PIDS="$(ps_fallback pid,args 2>/dev/null | awk 'tolower($0) ~ /worker/ {print $1}' | sort -u)"
+    else
+      WORKER_PIDS="$(ps -eo pid,args 2>/dev/null | awk 'tolower($0) ~ /worker/ {print $1}' | sort -u)"
+    fi
+    for wp in $WORKER_PIDS; do
+      if [ -n "$wp" ] && kill -0 "$wp" 2>/dev/null; then
+        WORKER_COUNT=$((WORKER_COUNT+1))
+      fi
+    done
+    if [ "$WORKER_COUNT" -gt 0 ]; then
+      echo "Workers running ($WORKER_COUNT)"
+    else
+      echo "Workers not running"
+    fi
     if [ "$MONITOR" -eq 1 ]; then
       monitor_foreground
     fi
