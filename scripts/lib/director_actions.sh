@@ -49,6 +49,9 @@ run_autopilot_summary() {
   mkdir -p "$out_dir"
   summary_file="$out_dir/summary.txt"
 
+  # Redirect autopilot function stdout/stderr to director logfile to avoid duplicate console prints
+  exec >>"$LOGFILE" 2>&1
+
   prompt_file=$(mktemp "/tmp/director_prompt_${run_ts}.XXXXXX") || prompt_file="/tmp/director_prompt_${run_ts}.$$"
   cat > "$prompt_file" <<'EOF'
 You are an expert code reviewer. Analyze the repository in the current working directory and produce a concise summary (6-12 lines) describing:
@@ -98,7 +101,7 @@ EOF
   trap 'cleanup_lock; cleanup_tmp' EXIT INT TERM
 
   printf '%s [AGENT-DIRECTOR] Autopilot summary: starting\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
-  printf '%s [AGENT-DIRECTOR] Autopilot summary: starting (audit dir: %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" || true
+  printf '%s [AGENT-DIRECTOR] Autopilot summary: starting (audit dir: %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" >>"$LOGFILE" 2>/dev/null || true
 
   if command -v copilot >/dev/null 2>&1; then
     COPILOT_HELP=$(copilot --help 2>&1 || true)
@@ -128,7 +131,7 @@ EOF
         active_prompt="$retry_prompt"
       fi
       printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot attempt %d/%d\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" "$MAX_ATTEMPTS" >>"$LOGFILE" 2>/dev/null || true
-      printf '%s [AGENT-DIRECTOR] Autopilot summary: attempting copilot (attempt %d/%d); stderr will be saved to %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" "$MAX_ATTEMPTS" "$out_dir/copilot.err" || true
+      printf '%s [AGENT-DIRECTOR] Autopilot summary: attempting copilot (attempt %d/%d); stderr will be saved to %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" "$MAX_ATTEMPTS" "$out_dir/copilot.err" >>"$LOGFILE" 2>/dev/null || true
 
       # Read prompt content and pass via -p (non-interactive); use -s to output only agent response
       MAX_PROMPT_BYTES=81920
@@ -159,7 +162,7 @@ EOF
         if [ -s "$cleaned" ]; then
           mv "$cleaned" "$summary_file" 2>/dev/null || cp "$cleaned" "$summary_file" 2>/dev/null || true
           printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced usable output on attempt %d\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" >>"$LOGFILE" 2>/dev/null || true
-          printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced usable output on attempt %d (summary: %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" "$summary_file" || true
+          printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced usable output on attempt %d (summary: %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" "$summary_file" >>"$LOGFILE" 2>/dev/null || true
           if [ -f "$out_dir/copilot.err" ] && [ -s "$out_dir/copilot.err" ]; then
             printf '%s [AGENT-DIRECTOR] copilot stderr (trimmed):\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
             sed -n '1,50p' "$out_dir/copilot.err" >>"$LOGFILE" 2>/dev/null || true
@@ -168,12 +171,11 @@ EOF
           break
         else
           printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot output contained only errors on attempt %d, retrying\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" >>"$LOGFILE" 2>/dev/null || true
-          printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot output contained only errors on attempt %d, retrying (console)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" || true
           rm -f "$cleaned" 2>/dev/null || true
         fi
       else
         printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced no output (exit %s) on attempt %d, stderr saved to %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$copilot_status" "$ATTEMPT" "$out_dir/copilot.err" >>"$LOGFILE" 2>/dev/null || true
-        printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced no output (exit %s) on attempt %d; check %s for details\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$copilot_status" "$ATTEMPT" "$out_dir/copilot.err" || true
+        printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced no output (exit %s) on attempt %d; check %s for details\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$copilot_status" "$ATTEMPT" "$out_dir/copilot.err" >>"$LOGFILE" 2>/dev/null || true
       fi
 
       ATTEMPT=$((ATTEMPT+1))
@@ -248,10 +250,10 @@ EOF
         excerpt="$excerpt_raw"
       fi
       printf '%s [AGENT-DIRECTOR] summary excerpt: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$excerpt" >>"$LOGFILE" 2>/dev/null || true
-      printf '%s [AGENT-DIRECTOR] summary excerpt: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$excerpt" || true
+
       # Also print a truncated head (first 6 lines) of the sanitized summary for visibility
       printf '%s [AGENT-DIRECTOR] summary head (first 6 lines):\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
-      printf '%s [AGENT-DIRECTOR] summary head (first 6 lines):\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" || true
+
       awk 'length($0)>200 {print substr($0,1,197) "..."; next} {print}' "$summary_file" | sed -n '1,6p' >>"$LOGFILE" 2>/dev/null || true
       awk 'length($0)>200 {print substr($0,1,197) "..."; next} {print}' "$summary_file" | sed -n '1,6p' || true
 
@@ -281,7 +283,6 @@ EOF
   trap - EXIT INT TERM
   return 0
 }
-
 
 # Generate a prioritized itemized plan (todo list) from the sanitized summary + repo snapshot using the copilot CLI.
 # Parameters: out_dir, summary_file, context_file, combined_prompt
