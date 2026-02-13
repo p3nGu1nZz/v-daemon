@@ -30,7 +30,7 @@ Validation methodology:
 7. Verify output directory structure (run/skills/) is properly configured
 8. For each agent, confirm: metadata completeness, helper script validity, documentation consistency
 
-Output format (structured JSON + human summary):
+Output format (structured JSON + readable summary):
 - validation_timestamp: ISO timestamp
 - overall_status: 'healthy' | 'degraded' | 'failed'
 - agent_count: total agents found
@@ -46,7 +46,7 @@ Output format (structured JSON + human summary):
     - dependencies_met: boolean + missing_deps
   - issues: list of specific problems found
   - recommendations: actionable remediation steps
-- summary: human-readable status (3-5 sentences)
+- summary: readable status (3-5 sentences; informational only)
 - recommended_actions: prioritized list of fixes needed
 
 Quality controls:

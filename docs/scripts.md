@@ -11,5 +11,5 @@ All scripts are POSIX `sh` with `#!/usr/bin/env sh` and should be executable (`c
 ## Guidelines for new scripts
 
 - Add a short header comment explaining purpose and usage.
-- Avoid unguarded package installs; require operator consent.
+- Avoid unguarded package installs; by default the Director will avoid network installs during automated runs; operator consent may be required in conservative deployments.
 - Use `run/` and `logs/` for runtime artifacts.

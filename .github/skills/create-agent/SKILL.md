@@ -7,7 +7,7 @@ description: "Scaffold a non-destructive agent descriptor (.github/agents) and o
 
 ## Summary
 
-Create a new agent scaffold by writing a descriptor file under `.github/agents/<name>.agent.md` and (optionally) a companion executable script under `scripts/agents/<name>.sh`. The skill emits a machine-readable report and a human summary under `run/skills/create-agent/<timestamp>/` describing created files and any early-exit reasons.
+Create a new agent scaffold by writing a descriptor file under `.github/agents/<name>.agent.md` and (optionally) a companion executable script under `scripts/agents/<name>.sh`. The skill emits a machine-readable report and a readable summary (informational only) under `run/skills/create-agent/<timestamp>/` describing created files and any early-exit reasons.
 
 ## When to run
 

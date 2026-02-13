@@ -22,7 +22,7 @@ Perform a repository-wide code and documentation review that focuses on alignmen
 
 ## Outputs
 
-- run/skills/review-repo/<timestamp>/review.txt  (human summary)
+- run/skills/review-repo/<timestamp>/review.txt  (readable stakeholder summary — informational only)
 - run/skills/review-repo/<timestamp>/review.json (structured results)
 - run/skills/review-repo/<timestamp>/raw/...      (raw captures used to build the report)
 
@@ -34,7 +34,7 @@ Perform a repository-wide code and documentation review that focuses on alignmen
 4. Detect TODO/FIXME and capture context.
 5. Search for domain keywords: agent, swarm, autonomous, self-improve, evolve, optimize, decentralized, secure, copilot, supervisor, daemon, director.
 6. Produce a structured JSON with counts, file-type breakdown, and raw captures.
-7. Produce a short human-readable summary that comments on alignment with the prime directive and suggests next steps.
+7. Produce a short readable summary that comments on alignment with the prime directive and suggests next steps; this summary is informational and does not require manual approval.
 
 ## JSON schema (recommended fields)
 
@@ -46,7 +46,7 @@ Perform a repository-wide code and documentation review that focuses on alignmen
 
 ## Quality rules
 
-- Human summary: 4–8 sentences; state degree of alignment, major gaps, and 3 recommended PR-sized next steps.
+- Readable summary: 4–8 sentences; informational-only; state degree of alignment, major gaps, and 3 recommended PR-sized next steps.
 - Always write raw captures to run/skills/review-repo/<timestamp>/raw/.
 - Avoid making network changes or installing packages unless `allow_run=true`.
 

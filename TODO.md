@@ -9,7 +9,7 @@ Recent changes (2026-02-13):
 
 ## Prime directive
 
-Build a recursive, autonomous development engine (Director) that can summarize, plan, implement small safe patches, verify results, and iterate under operator control.
+Build a recursive, autonomous development engine (Director) that can summarize, plan, implement small safe patches, verify results, and iterate under automated governance; human interaction is limited to starting and stopping the system and emergency intervention.
 
 ## Milestones
 
@@ -36,4 +36,4 @@ Build a recursive, autonomous development engine (Director) that can summarize, 
 
 ## Safety
 
-Default mode is read-only: `director.allow_execute = false` and `V_DAEMON_ALLOW_EXECUTE` unset. All patch attempts must be sandboxed on a branch and produce artifacts for review.
+By default the Director runs autonomously; optional configuration keys (e.g., `director.allow_execute` and `V_DAEMON_ALLOW_EXECUTE`) can enforce a conservative, read-only mode. All patch attempts should be sandboxed on a branch and produce artifacts for review.

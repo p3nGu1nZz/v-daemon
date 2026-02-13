@@ -4,7 +4,7 @@ A lightweight supervisor and developer harness for experimenting with a Director
 
 v-daemon provides small POSIX shell helpers to set up dependencies, run repository checks, and operate a simple supervisor + agent workflow. Optional native C/C++ components and CMake support are available but not required for most development.
 
-**Status:** Early development — the long-term goal is a safe, iterative engine that summarizes the repository, generates prioritized tasks, and applies small, verifiable changes under automated governance. Decisions about what to implement are determined via discourse by the repository's code-review personas; the Director persona synthesizes votes and makes release decisions aligned with the project's prime directive. There is no separate human-in-the-loop approval step.
+**Status:** Early development — the long-term goal is a safe, iterative engine that summarizes the repository, generates prioritized tasks, and applies small, verifiable changes under automated governance. Decisions about what to implement are determined via automated discourse by code-review personas; the Director persona synthesizes votes and makes release decisions aligned with the project's prime directive. The system is designed to operate autonomously; human interaction is limited to starting and stopping the system and emergency intervention.
 
 Recent updates (2026-02-13):
 
@@ -59,7 +59,7 @@ Recent updates (2026-02-13):
 
 - Open issues and PRs on GitHub. Keep changes minimal and document acceptance criteria.
 
-- Governance: Decisions are made via discourse by the repository's code-review personas; the Director persona synthesizes votes and determines the iterative release cycle aligned with the project's prime directive (autonomous agent swarm that self-improves, optimizes, and evolves). There is no separate human-in-the-loop approval step; agent personas and the Director govern prioritization and acceptance.
+- Governance: Decisions are made via automated discourse by the repository's code-review personas; the Director persona synthesizes votes and determines the iterative release cycle aligned with the project's prime directive (autonomous agent swarm that self-improves, optimizes, and evolves). Human interaction is limited to starting and stopping the system and emergency intervention; agent personas and the Director govern prioritization and acceptance.
 - Never commit secrets.
 
 ## License

@@ -26,7 +26,7 @@ The skill is intended to be deterministic, non-destructive by default, and to pr
 
 ## Outputs
 
-- `run/skills/update-docs/<timestamp>/report.txt` — human summary of findings.
+- `run/skills/update-docs/<timestamp>/report.txt` — readable summary of findings (informational only).
 - `run/skills/update-docs/<timestamp>/report.json` — structured summary with counts and references.
 - `run/skills/update-docs/<timestamp>/todos.json` — JSON array of todo items (id, title, description, files, acceptance_criteria, complexity, impact, priority, suggested branch/commit).
 - `docs/specs/...` — generated/updated spec files mirroring `scripts/` and `src/` when `update_specs=true`.
@@ -100,7 +100,7 @@ The skill is intended to be deterministic, non-destructive by default, and to pr
 
 ## Outputs and acceptance
 
-- The skill must write the human-readable report and structured JSON/todos under `run/skills/update-docs/<timestamp>/`.
+- The skill must write the readable report (informational only) and structured JSON/todos under `run/skills/update-docs/<timestamp>/`.
 - Acceptance: `run/skills/update-docs/<timestamp>/report.json`, `run/skills/update-docs/<timestamp>/todos.json`, and a set of `docs/specs/*` files (if `update_specs=true`) are produced; todos are actionable and include complexity and impact.
 
 ## Safety

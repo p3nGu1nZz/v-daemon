@@ -16,7 +16,7 @@ v-daemon is a small supervisor and development harness to explore a Director/Wor
 
 - Small and auditable: prefer POSIX shell for discoverability.
 - Optional native: allow C/C++ components without requiring toolchains.
-- Safe by default: sandbox execution and require explicit operator consent for mutations.
+- Safe by default: sandbox execution; the Director operates autonomously by default and can be configured to require explicit operator consent for mutations.
 - Testable: make changes verifiable via `scripts/setup.sh`.
 
 ## Runtime layout
