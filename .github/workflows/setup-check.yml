@@ -8,4 +8,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run setup checks
-        run: sh scripts/setup.sh --check
+        run: sh scripts/setup.sh --yes

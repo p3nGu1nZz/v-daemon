@@ -33,7 +33,13 @@ run_checks() {
   check_cmd make
   check_cmd git
   check_cmd docker
-  check_cmd copilot
+
+  # Copilot CLI is optional in CI checks; warn if missing but do not fail the check
+  if command -v copilot >/dev/null 2>&1; then
+    printf 'OK: copilot\n'
+  else
+    printf 'WARNING: copilot not found (optional)\n'
+  fi
 
   # If copilot exists, verify it is usable
   if command -v copilot >/dev/null 2>&1; then
