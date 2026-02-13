@@ -86,6 +86,8 @@ You are an expert code reviewer. Analyze the repository in the current working d
 - outstanding TODOs from TODO.md (if present)
 Provide a plain-text report suitable for logging and auditing.
 Important: DO NOT attempt to access files on disk or request interactive permission; only use the REPO SNAPSHOT provided before this prompt.
+Important: Do NOT simulate executing scripts or produce shell session output (for example, lines beginning with "$" or "✗") and do NOT include permission errors or interactive permission requests in your output. If checks would normally be executed, describe the expected checks and outcomes in plain text without simulating command execution.
+Return only the concise summary lines; do not add debugging, step-by-step actions, or request user input.
 EOF
 
   # Build a small repository snapshot to include with the prompt so copilot doesn't need filesystem access
@@ -124,6 +126,7 @@ EOF
   trap 'cleanup_lock; cleanup_tmp' EXIT INT TERM
 
   printf '%s [AGENT-DIRECTOR] Autopilot summary: starting\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
+  printf '%s [AGENT-DIRECTOR] Autopilot summary: starting (audit dir: %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" || true
 
   if command -v copilot >/dev/null 2>&1; then
     COPILOT_HELP=$(copilot --help 2>&1 || true)
@@ -157,6 +160,7 @@ EOF
     active_prompt="$retry_prompt"
   fi
       printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot attempt %d/%d\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" "$MAX_ATTEMPTS" >>"$LOGFILE" 2>/dev/null || true
+      printf '%s [AGENT-DIRECTOR] Autopilot summary: attempting copilot (attempt %d/%d); stderr will be saved to %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" "$MAX_ATTEMPTS" "$out_dir/copilot.err" || true
 
       if cat "$active_prompt" | $COPILOT_ENV copilot $COPILOT_OPTS >"$summary_file" 2>"$out_dir/copilot.err"; then
         copilot_status=0
@@ -170,6 +174,7 @@ EOF
         if [ -s "$cleaned" ]; then
           mv "$cleaned" "$summary_file" 2>/dev/null || cp "$cleaned" "$summary_file" 2>/dev/null || true
           printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced usable output on attempt %d\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" >>"$LOGFILE" 2>/dev/null || true
+          printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced usable output on attempt %d (summary: %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" "$summary_file" || true
           if [ -f "$out_dir/copilot.err" ] && [ -s "$out_dir/copilot.err" ]; then
             printf '%s [AGENT-DIRECTOR] copilot stderr (trimmed):\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
             sed -n '1,50p' "$out_dir/copilot.err" >>"$LOGFILE" 2>/dev/null || true
@@ -178,10 +183,12 @@ EOF
           break
         else
           printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot output contained only errors on attempt %d, retrying\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" >>"$LOGFILE" 2>/dev/null || true
+          printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot output contained only errors on attempt %d, retrying (console)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$ATTEMPT" || true
           rm -f "$cleaned" 2>/dev/null || true
         fi
       else
         printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced no output (exit %s) on attempt %d, stderr saved to %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$copilot_status" "$ATTEMPT" "$out_dir/copilot.err" >>"$LOGFILE" 2>/dev/null || true
+        printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced no output (exit %s) on attempt %d; check %s for details\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$copilot_status" "$ATTEMPT" "$out_dir/copilot.err" || true
       fi
 
       ATTEMPT=$((ATTEMPT+1))
@@ -196,6 +203,7 @@ EOF
           # do NOT fallback to local summarizer; preserve raw and sanitized outputs for diagnostics
           mv "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || cp "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || true
           mv "$cleaned" "$out_dir/copilot_sanitized.txt" 2>/dev/null || cp "$cleaned" "$out_dir/copilot_sanitized.txt" 2>/dev/null || true
+          printf '%s [AGENT-DIRECTOR] Autopilot summary: sanitized copilot output saved to %s/copilot_sanitized.txt and raw to %s/copilot_raw.txt\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" "$out_dir" || true
           printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced sanitized output after %d attempts but will NOT fallback; inspect %s/copilot_sanitized.txt
 ' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$MAX_ATTEMPTS" "$out_dir" >>"$LOGFILE" 2>/dev/null || true
         else
@@ -216,21 +224,33 @@ EOF
   fi
 
   # Sanitize summary: remove obvious copilot-run artifacts and append (up to first 200 lines)
-  if [ "$usable" -eq 1 ] && [ -s "$summary_file" ]; then
-    cleaned=$(mktemp "/tmp/director_cleaned_${run_ts}.XXXXXX") || cleaned="$summary_file"
+  if [ -s "$summary_file" ]; then
+    # Preserve raw output for debugging
+    mv "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || cp "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || true
+    cleaned=$(mktemp "/tmp/director_cleaned_${run_ts}.XXXXXX") || cleaned="$out_dir/copilot_sanitized.txt"
     # filter out noise that looks like shell commands, permission errors, copilot help hints, or copilot planning artifacts
-    grep -i -v -E 'Permission denied|could not request permission|Try .*copilot --help|^\\$ |^\\s*✗|Reading README|Running parallel|Attempt to read|^\\s*\\$' "$summary_file" > "$cleaned" 2>/dev/null || cp "$summary_file" "$cleaned" 2>/dev/null || true
-    sed -n '1,200p' "$cleaned" >>"$LOGFILE" 2>/dev/null || true
+    grep -i -v -E 'Permission denied|could not request permission|Try .*copilot --help|^\\$ |^\\s*✗|Reading README|Running parallel|Attempt to read|^\\s*\\$|Asked user:|User responded:|Shell execution is blocked|sh scripts/check.sh' "$out_dir/copilot_raw.txt" > "$cleaned" 2>/dev/null || cp "$out_dir/copilot_raw.txt" "$cleaned" 2>/dev/null || true
 
-    # Prepare a one-line excerpt (first 250 characters, whitespace collapsed) from cleaned content
-    excerpt_raw=$(tr '\n' ' ' <"$cleaned" | sed 's/[[:space:]]\+/ /g' | sed 's/^ *//;s/ *$//')
-    excerpt=$(printf '%s' "$excerpt_raw" | cut -c 1-250)
-    printf '%s [AGENT-DIRECTOR] summary excerpt: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$excerpt" >>"$LOGFILE" 2>/dev/null || true
-    # Also echo to stdout (will be captured by director's stdout redirection)
-    printf '%s [AGENT-DIRECTOR] summary excerpt: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$excerpt" || true
+    if [ -s "$cleaned" ]; then
+      # Move sanitized version into the canonical summary file and keep copies
+      mv "$cleaned" "$summary_file" 2>/dev/null || cp "$cleaned" "$summary_file" 2>/dev/null || true
+      cp "$summary_file" "$out_dir/copilot_sanitized.txt" 2>/dev/null || true
+      sed -n '1,200p' "$summary_file" >>"$LOGFILE" 2>/dev/null || true
+      printf '%s [AGENT-DIRECTOR] Autopilot summary: sanitized copilot output saved to %s/copilot_sanitized.txt (raw: %s/copilot_raw.txt)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" "$out_dir" || true
 
-    # cleanup temporary cleaned file if created
-    [ -n "$cleaned" ] && [ "$cleaned" != "$summary_file" ] && rm -f "$cleaned" 2>/dev/null || true
+      # Prepare and print excerpt
+      excerpt_raw=$(tr '\n' ' ' <"$summary_file" | sed 's/[[:space:]]\+/ /g' | sed 's/^ *//;s/ *$//')
+      excerpt=$(printf '%s' "$excerpt_raw" | cut -c 1-250)
+      printf '%s [AGENT-DIRECTOR] summary excerpt: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$excerpt" >>"$LOGFILE" 2>/dev/null || true
+      printf '%s [AGENT-DIRECTOR] summary excerpt: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$excerpt" || true
+    else
+      # Sanitization removed everything; keep raw for debugging and write a clear message into summary_file
+      printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot output contained only artifacts and was not suitable; raw output saved to %s/copilot_raw.txt\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" >>"$LOGFILE" 2>/dev/null || true
+      printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot output contained only artifacts and was not suitable; raw output saved to %s/copilot_raw.txt\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" || true
+      printf 'Copilot did not provide a usable summary: see copilot_raw.txt for full output.\n' >"$summary_file" 2>/dev/null || true
+    fi
+  else
+    printf '%s [AGENT-DIRECTOR] Autopilot summary: no output to sanitize\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
   fi
 
   # cleanup temp prompt/context/combined files and lock
