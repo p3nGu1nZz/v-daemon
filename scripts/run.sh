@@ -46,9 +46,10 @@ is_pid_for_script() {
   if ! kill -0 "$pid" 2>/dev/null; then
     return 1
   fi
-  # Get the command line for the pid and check for the script path
+  # Get the command line for the pid and check for the script path or basename
   cmdline="$(ps -p "$pid" -o args= 2>/dev/null || true)"
-  if [ -n "$cmdline" ] && echo "$cmdline" | grep -F -q "$script"; then
+  script_base="$(basename "$script")"
+  if [ -n "$cmdline" ] && (echo "$cmdline" | grep -F -q "$script" || echo "$cmdline" | grep -F -q "$script_base"); then
     return 0
   fi
   return 1
