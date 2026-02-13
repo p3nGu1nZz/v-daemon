@@ -78,7 +78,7 @@ start_supervisor_bg() {
       SUPPID=$(cat "$SUP_PIDFILE" 2>/dev/null || true)
       if is_pid_for_script "$SUPPID" "$SCRIPT_DIR/lib/supervise.sh"; then
         if grep -q "Supervisor: started" "$SUP_LOGFILE" 2>/dev/null; then
-          echo "Started supervisor (PID $SUPPID)"
+          echo "Started supervisor (PID $SUPPID)" >&2
           return
         fi
       fi
@@ -89,9 +89,9 @@ start_supervisor_bg() {
 
   # Fallback: report background PID if supervise didn't populate pidfile
   if [ -n "$SUPPID" ]; then
-    echo "Started supervisor (PID $SUPPID)"
+    echo "Started supervisor (PID $SUPPID)" >&2
   else
-    echo "Started supervisor (PID $BG_PID) (SUP_PIDFILE not found)"
+    echo "Started supervisor (PID $BG_PID) (SUP_PIDFILE not found)" >&2
     # write bg pidfile for convenience
     echo "$BG_PID" >"$SUP_PIDFILE" || true
   fi
@@ -283,7 +283,7 @@ stop_all() {
 }
 
 monitor_foreground() {
-  echo "Monitor: streaming daemon and supervisor logs (press Ctrl-C to exit)"
+  echo "Monitor: streaming daemon and supervisor logs (press Ctrl-C to exit)" >&2
   touch "$LOGFILE" "$SUP_LOGFILE"
 
   # Start tails: daemon directly (no extra prefix), supervisor prefixed only when missing
@@ -313,7 +313,7 @@ monitor_foreground() {
       DAEMON_RUNNING="running (PID $DPID)"
     fi
   fi
-  printf '%s [SYSTEM] Supervisor: %s | Daemon: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$SUP_RUNNING" "$DAEMON_RUNNING"
+  printf '%s [SYSTEM] Supervisor: %s | Daemon: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$SUP_RUNNING" "$DAEMON_RUNNING" >&2
   # Wait on background tails; trap will handle cleanup on INT/TERM
   wait
 
