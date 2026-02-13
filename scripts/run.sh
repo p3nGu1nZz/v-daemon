@@ -498,7 +498,7 @@ input_loop() {
 }
 
 monitor_foreground() {
-  printf 'Monitor: streaming daemon and supervisor logs (press Ctrl-C to exit)\n' >&2
+  printf 'Monitor: live swarm status (press Ctrl-C to exit)\n' >&2
   touch "$LOGFILE" "$SUP_LOGFILE" "$DIRECTOR_LOG"
 
   # Ensure Ctrl-C triggers clean shutdown of supervisor and daemon
@@ -568,13 +568,20 @@ monitor_foreground() {
 
   printf '%s [SYSTEM] Supervisor: %s | Daemon: %s | Uptime: %s | %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$SUP_RUNNING" "$DAEMON_RUNNING" "$UPTIME_FMT" "$SWARM_STATUS" >&2
 
-  # Start tails after printing status so outputs don't interleave with the status line
-  tail -n 0 -F "$LOGFILE" 2>/dev/null &
-  TAIL_D=$!
-  tail -n 0 -F "$SUP_LOGFILE" 2>/dev/null | sed '/\[SUPERVISOR\]/! s/^/[SUPERVISOR] /' &
-  TAIL_S=$!
-  tail -n 0 -F "$DIRECTOR_LOG" 2>/dev/null &
-  TAIL_DIR=$!
+  # Do not stream logs by default; monitor displays live swarm status only
+  STREAM_LOGS="${STREAM_LOGS:-0}"
+  if [ "${STREAM_LOGS}" -eq 1 ]; then
+    tail -n 0 -F "$LOGFILE" 2>/dev/null &
+    TAIL_D=$!
+    tail -n 0 -F "$SUP_LOGFILE" 2>/dev/null | sed '/\[SUPERVISOR\]/! s/^/[SUPERVISOR] /' &
+    TAIL_S=$!
+    tail -n 0 -F "$DIRECTOR_LOG" 2>/dev/null &
+    TAIL_DIR=$!
+  else
+    TAIL_D=""
+    TAIL_S=""
+    TAIL_DIR=""
+  fi
 
   # Start interactive input loop for monitor (reads single-key input and manages focus)
   input_loop &
