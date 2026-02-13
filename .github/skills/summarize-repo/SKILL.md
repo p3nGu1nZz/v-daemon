@@ -1,19 +1,6 @@
 ---
 name: summarize-repo
 description: "Produce a concise, structured summary of the repository suitable for human review and automated planning."
-inputs:
-  allow_run:
-    type: boolean
-    default: false
-  output_format:
-    type: string
-    default: text
-outputs:
-  - path: run/skills/summarize-repo/<timestamp>/summary.txt
-  - path: run/skills/summarize-repo/<timestamp>/summary.json
-tags:
-  - repo
-  - summary
 ---
 
 # SKILL: summarize-repo
