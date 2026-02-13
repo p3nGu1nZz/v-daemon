@@ -20,8 +20,11 @@ trap 'rm -f "$SUP_PIDFILE"; exit 0' INT TERM EXIT
 mkdir -p "$REPO_ROOT/logs"
 touch "$LOGFILE" "$SUP_LOGFILE"
 
+# track last-seen daemon pid to avoid noisy repeated running logs
+PREV_DPID=""
+
 # Report startup immediately so monitors see supervisor pid before daemon heartbeats
-printf '%s [SUP] Supervisor: started (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$$" >>"$SUP_LOGFILE"
+printf '%s [SUPERVISOR] Supervisor: started (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$$" >>"$SUP_LOGFILE"
 
 # Clean up on exit
 cleanup() {
@@ -34,11 +37,15 @@ while true; do
   if [ -f "$DAEMON_PIDFILE" ]; then
     DPID=$(cat "$DAEMON_PIDFILE" 2>/dev/null || true)
     if [ -n "$DPID" ] && kill -0 "$DPID" 2>/dev/null; then
-      printf '%s [SUP] Supervisor: daemon running (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$DPID" >>"$SUP_LOGFILE"
+      if [ "$DPID" != "$PREV_DPID" ]; then
+        printf '%s [SUPERVISOR] Supervisor: daemon running (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$DPID" >>"$SUP_LOGFILE"
+        PREV_DPID="$DPID"
+      fi
     else
       # Stale PID file
       rm -f "$DAEMON_PIDFILE" 2>/dev/null || true
-      printf '%s [SUP] Supervisor: starting daemon\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$SUP_LOGFILE"
+      PREV_DPID=""
+      printf '%s [SUPERVISOR] Supervisor: starting daemon\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$SUP_LOGFILE"
       # Rotate logs before starting a new daemon if rotate script present and logfile non-empty
       if [ -x "$REPO_ROOT/scripts/rotate_logs.sh" ] && [ -s "$LOGFILE" ]; then
         sh "$REPO_ROOT/scripts/rotate_logs.sh" || true
@@ -51,7 +58,8 @@ while true; do
         if [ -f "$DAEMON_PIDFILE" ]; then
           DPID=$(cat "$DAEMON_PIDFILE" 2>/dev/null || true)
           if [ -n "$DPID" ] && kill -0 "$DPID" 2>/dev/null; then
-            printf '%s [SUP] Supervisor: started daemon (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$DPID" >>"$SUP_LOGFILE"
+            printf '%s [SUPERVISOR] Supervisor: started daemon (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$DPID" >>"$SUP_LOGFILE"
+            PREV_DPID="$DPID"
             break
           fi
         fi
@@ -61,11 +69,12 @@ while true; do
       if [ ! -f "$DAEMON_PIDFILE" ]; then
         # fallback: write the pid we started
         echo "$DAEMON_START_PID" >"$DAEMON_PIDFILE" 2>/dev/null || true
-        printf '%s [SUP] Supervisor: started daemon (PID %s) (pidfile created by supervisor)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$DAEMON_START_PID" >>"$SUP_LOGFILE"
+        printf '%s [SUPERVISOR] Supervisor: started daemon (PID %s) (pidfile created by supervisor)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$DAEMON_START_PID" >>"$SUP_LOGFILE"
+        PREV_DPID="$DAEMON_START_PID"
       fi
     fi
   else
-    printf '%s [SUP] Supervisor: starting daemon (no pidfile)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$SUP_LOGFILE"
+    printf '%s [SUPERVISOR] Supervisor: starting daemon (no pidfile)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$SUP_LOGFILE"
     # Rotate logs before starting a new daemon if rotate script present and logfile non-empty
     if [ -x "$REPO_ROOT/scripts/rotate_logs.sh" ] && [ -s "$LOGFILE" ]; then
       sh "$REPO_ROOT/scripts/rotate_logs.sh" || true
@@ -77,7 +86,8 @@ while true; do
       if [ -f "$DAEMON_PIDFILE" ]; then
         DPID=$(cat "$DAEMON_PIDFILE" 2>/dev/null || true)
         if [ -n "$DPID" ] && kill -0 "$DPID" 2>/dev/null; then
-          printf '%s [SUP] Supervisor: started daemon (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$DPID" >>"$SUP_LOGFILE"
+          printf '%s [SUPERVISOR] Supervisor: started daemon (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$DPID" >>"$SUP_LOGFILE"
+          PREV_DPID="$DPID"
           break
         fi
       fi
@@ -86,7 +96,8 @@ while true; do
     done
     if [ ! -f "$DAEMON_PIDFILE" ]; then
       echo "$DAEMON_START_PID" >"$DAEMON_PIDFILE" 2>/dev/null || true
-      printf '%s [SUP] Supervisor: started daemon (PID %s) (pidfile created by supervisor)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$DAEMON_START_PID" >>"$SUP_LOGFILE"
+      printf '%s [SUPERVISOR] Supervisor: started daemon (PID %s) (pidfile created by supervisor)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$DAEMON_START_PID" >>"$SUP_LOGFILE"
+      PREV_DPID="$DAEMON_START_PID"
     fi
   fi
   sleep "$CHECK_INTERVAL"

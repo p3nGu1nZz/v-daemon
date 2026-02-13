@@ -32,6 +32,17 @@ check_cmd g++
 check_cmd make
 check_cmd git
 check_cmd docker
+check_cmd copilot
+
+# If copilot exists, verify it is usable
+if command -v copilot >/dev/null 2>&1; then
+  if copilot --version >/dev/null 2>&1; then
+    echo "OK: copilot CLI available"
+  else
+    echo "WARNING: copilot binary found but not responding to --version; it may need setup or login"
+    missing=1
+  fi
+fi
 
 if command -v docker >/dev/null 2>&1; then
   if docker info >/dev/null 2>&1; then

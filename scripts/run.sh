@@ -139,28 +139,28 @@ monitor_foreground() {
   echo "Monitor: streaming daemon and supervisor logs (press Ctrl-C to exit)"
   touch "$LOGFILE" "$SUP_LOGFILE"
 
-  # Start tails with prefixes
-  tail -n 0 -F "$LOGFILE" 2>/dev/null | sed 's/^/[DAEMON] /' &
+  # Start tails: daemon directly (no extra prefix), supervisor prefixed only when missing
+  tail -n 0 -F "$LOGFILE" 2>/dev/null &
   TAIL_D=$!
-  tail -n 0 -F "$SUP_LOGFILE" 2>/dev/null | sed 's/^/[SUP] /' &
+  tail -n 0 -F "$SUP_LOGFILE" 2>/dev/null | sed '/\[SUPERVISOR\]/! s/^/[SUPERVISOR] /' &
   TAIL_S=$!
 
   # Ensure Ctrl-C triggers clean shutdown of supervisor and daemon
   trap 'cleanup_and_exit' INT TERM
 
-  # Periodic status updates (will intermix with logs)
-  while true; do
-    SUP_RUNNING="not running"
-    DAEMON_RUNNING="not running"
-    if [ -f "$SUP_PIDFILE" ] && kill -0 "$(cat "$SUP_PIDFILE")" 2>/dev/null; then
-      SUP_RUNNING="running (PID $(cat "$SUP_PIDFILE"))"
-    fi
-    if [ -f "$DAEMON_PIDFILE" ] && kill -0 "$(cat "$DAEMON_PIDFILE")" 2>/dev/null; then
-      DAEMON_RUNNING="running (PID $(cat "$DAEMON_PIDFILE"))"
-    fi
-    printf '%s [STATUS] Supervisor: %s | Daemon: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$SUP_RUNNING" "$DAEMON_RUNNING"
-    sleep "$CHECK_INTERVAL"
-  done
+  # Print a single system status line at monitor start
+  SUP_RUNNING="not running"
+  DAEMON_RUNNING="not running"
+  if [ -f "$SUP_PIDFILE" ] && kill -0 "$(cat "$SUP_PIDFILE")" 2>/dev/null; then
+    SUP_RUNNING="running (PID $(cat "$SUP_PIDFILE"))"
+  fi
+  if [ -f "$DAEMON_PIDFILE" ] && kill -0 "$(cat "$DAEMON_PIDFILE")" 2>/dev/null; then
+    DAEMON_RUNNING="running (PID $(cat "$DAEMON_PIDFILE"))"
+  fi
+  printf '%s [SYSTEM] Supervisor: %s | Daemon: %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$SUP_RUNNING" "$DAEMON_RUNNING"
+  # Wait on background tails; trap will handle cleanup on INT/TERM
+  wait
+
 }
 
 case "${1:-}" in

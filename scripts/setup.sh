@@ -84,4 +84,12 @@ else
   echo "Catch2 already present at $CATCH_DIR"
 fi
 
+# Install GitHub Copilot CLI if missing
+if ! command -v copilot >/dev/null 2>&1; then
+  echo "Copilot CLI not found; installing via https://gh.io/copilot-install"
+  curl -fsSL https://gh.io/copilot-install | bash
+else
+  echo "Copilot CLI already installed"
+fi
+
 echo "Setup complete. Example build: mkdir -p build && cd build && cmake -G Ninja .. && ninja -j$(nproc 2>/dev/null || echo 2)"
