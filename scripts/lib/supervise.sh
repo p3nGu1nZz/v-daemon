@@ -21,10 +21,11 @@ mkdir -p "$REPO_ROOT/logs"
 touch "$LOGFILE" "$SUP_LOGFILE"
 
 # Report startup immediately so monitors see supervisor pid before daemon heartbeats
-printf '%s Supervisor: started (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$$" >>"$SUP_LOGFILE"
+printf '%s [SUP] Supervisor: started (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$$" >>"$SUP_LOGFILE"
 
 # Start tail to stream daemon logs to supervisor stdout (non-blocking)
-tail -n 0 -F "$LOGFILE" 2>/dev/null &
+# Prefix forwarded daemon lines so the combined supervisor log contains both [SUP] and [DAEMON] entries
+tail -n 0 -F "$LOGFILE" 2>/dev/null | sed "s/^/[DAEMON] /" &
 TAIL_PID=$!
 
 # Clean up on exit
@@ -39,20 +40,20 @@ while true; do
   if [ -f "$DAEMON_PIDFILE" ]; then
     DPID=$(cat "$DAEMON_PIDFILE" 2>/dev/null || true)
     if [ -n "$DPID" ] && kill -0 "$DPID" 2>/dev/null; then
-      printf '%s Supervisor: daemon running (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$DPID" >>"$SUP_LOGFILE"
+      printf '%s [SUP] Supervisor: daemon running (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$DPID" >>"$SUP_LOGFILE"
     else
       # Stale PID file
       rm -f "$DAEMON_PIDFILE" 2>/dev/null || true
-      printf '%s Supervisor: starting daemon\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$SUP_LOGFILE"
+      printf '%s [SUP] Supervisor: starting daemon\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$SUP_LOGFILE"
       nohup sh "$DAEMON" >>"$LOGFILE" 2>&1 &
       echo $! >"$DAEMON_PIDFILE"
-      printf '%s Supervisor: started daemon (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$(cat $DAEMON_PIDFILE)" >>"$SUP_LOGFILE"
+      printf '%s [SUP] Supervisor: started daemon (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$(cat $DAEMON_PIDFILE)" >>"$SUP_LOGFILE"
     fi
   else
-    printf '%s Supervisor: starting daemon (no pidfile)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$SUP_LOGFILE"
+    printf '%s [SUP] Supervisor: starting daemon (no pidfile)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$SUP_LOGFILE"
     nohup sh "$DAEMON" >>"$LOGFILE" 2>&1 &
     echo $! >"$DAEMON_PIDFILE"
-    printf '%s Supervisor: started daemon (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$(cat $DAEMON_PIDFILE)" >>"$SUP_LOGFILE"
+    printf '%s [SUP] Supervisor: started daemon (PID %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$(cat $DAEMON_PIDFILE)" >>"$SUP_LOGFILE"
   fi
   sleep "$CHECK_INTERVAL"
 done

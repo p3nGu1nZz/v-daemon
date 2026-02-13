@@ -100,8 +100,7 @@ fi
 cleanup_and_exit() {
   echo "Caught interrupt; shutting down supervisor and daemon..." >&2
 
-  # Kill any tails streaming logs
-  [ -n "${TAIL_D:-}" ] && kill "$TAIL_D" 2>/dev/null || true
+  # Kill any tail streaming logs
   [ -n "${TAIL_S:-}" ] && kill "$TAIL_S" 2>/dev/null || true
 
   # Stop supervisor if running
@@ -139,10 +138,8 @@ monitor_foreground() {
   echo "Monitor: streaming daemon and supervisor logs (press Ctrl-C to exit)"
   touch "$LOGFILE" "$SUP_LOGFILE"
 
-  # Start tails with prefixes
-  tail -n 0 -F "$LOGFILE" 2>/dev/null | sed "s/^/[DAEMON] /" &
-  TAIL_D=$!
-  tail -n 0 -F "$SUP_LOGFILE" 2>/dev/null | sed "s/^/[SUP] /" &
+  # Start tail of combined supervisor+daemon log
+  tail -n 0 -F "$SUP_LOGFILE" 2>/dev/null &
   TAIL_S=$!
 
   # Ensure Ctrl-C triggers clean shutdown of supervisor and daemon
