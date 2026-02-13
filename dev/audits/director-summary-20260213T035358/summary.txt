@@ -1,5 +1,5 @@
 Repository summary (fallback)
-Generated: 2026-02-13T03:51:54-0500
+Generated: 2026-02-13T04:16:40-0500
 
 README (top):
 # v-daemon
@@ -45,6 +45,6 @@ run
 scripts
 
 File counts by dir:
-v-daemon: 864 files
+v-daemon: 866 files
 scripts: 10 files
 logs: 17 files
