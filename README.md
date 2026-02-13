@@ -29,7 +29,7 @@ v-daemon provides small POSIX shell helpers to set up dependencies, run reposito
 ## Key scripts
 
 - `scripts/setup.sh` — install or prepare dependencies and create `run/` and `logs/`
-- `scripts/setup.sh` — run repository checks (read-only by default)
+- `scripts/check.sh` — run repository checks (read-only by default)
 - `scripts/run.sh` — start/stop/status the supervisor and daemon
 
 ## Requirements
