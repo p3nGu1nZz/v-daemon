@@ -30,9 +30,10 @@ Automate a simple SCM workflow to stage all changes, create a deterministic comm
 
 1. Verify inside a git repository and capture working tree state and branch.
 2. If allow_push is false, ensure --no-push is passed to scripts/skills/patch-repo.sh.
-3. Run scripts/skills/patch-repo.sh via the wrapper scripts/skills/patch-repo.sh, capturing stdout/stderr to run/skills/patch-repo/<timestamp>/.
-4. On success, parse commit SHA and push state and write report.json and status.txt.
-5. On failure, capture git status and git log -n 5 and include error details in report.json.
+3. Run scripts/skills/patch-repo.sh, capturing stdout/stderr to run/skills/patch-repo/<timestamp>/.
+4. After execution, verify that the created commit was successfully pushed when pushing is permitted. Parse the skill report (report.json) or inspect remote state to determine push success. If the push failed and allow_push is true, retry pushing up to 3 times (capturing stdout/stderr for each attempt) before giving up; record each attempt and any errors in the run/skills/patch-repo/<timestamp>/ outputs.
+5. If any attempt succeeds, mark pushed=true and write the final report.json and status.txt. If all attempts fail after 3 retries, set status="failed", include details in notes (e.g., last push error), and exit with a non-zero error code so calling agents detect the failure.
+6. On non-push failures (e.g., commit creation failed), capture git status and git log -n 5 and include error details in report.json.
 
 ## Quality rules & safety
 
