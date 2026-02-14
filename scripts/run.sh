@@ -455,15 +455,35 @@ input_loop() {
   while :; do
     # determine controlling terminal to read from (fallback to stdin)
     if [ -t 0 ]; then TTY="/dev/tty"; else TTY="/dev/stdin"; fi
+
+    # detect if current shell supports 'read -n' for single-char reads (portable fallback to dd otherwise)
+    if [ -z "${READ_CAN_N:-}" ]; then
+      if sh -c 'printf x | { read -r -n1 c 2>/dev/null && exit 0 || exit 1; }' 2>/dev/null; then
+        READ_CAN_N=1
+      else
+        READ_CAN_N=0
+      fi
+    fi
+
     # read one byte (blocking until input available) from the controlling terminal
-    c="$(dd bs=1 count=1 2>/dev/null < "$TTY" || true)"
+    if [ "${READ_CAN_N:-0}" -eq 1 ]; then
+      # use shell builtin read when available to better handle interactive input
+      IFS= read -r -n1 c < "$TTY" 2>/dev/null || c=''
+    else
+      c="$(dd bs=1 count=1 2>/dev/null < "$TTY" || true)"
+    fi
+
     if [ -z "$c" ]; then
       continue
     fi
 
     if [ "$c" = "$ESC" ]; then
       # read next two bytes for arrow sequences (blocking)
-      seq_tail="$(dd bs=1 count=2 2>/dev/null < "$TTY" || true)"
+      if [ "${READ_CAN_N:-0}" -eq 1 ]; then
+        IFS= read -r -n2 seq_tail < "$TTY" 2>/dev/null || seq_tail=''
+      else
+        seq_tail="$(dd bs=1 count=2 2>/dev/null < "$TTY" || true)"
+      fi
       seq="$c$seq_tail"
       if [ "$seq" = "$UP" ]; then
         focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
