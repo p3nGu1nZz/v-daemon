@@ -9,3 +9,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run setup checks
         run: sh scripts/setup.sh --ci
+      - name: Run CI tests
+        run: sh scripts/test.sh --ci
