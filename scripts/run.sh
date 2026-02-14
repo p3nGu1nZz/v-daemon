@@ -950,6 +950,10 @@ monitor_foreground() {
 
           n=0
           total=$(wc -l <"$tree_tmp" 2>/dev/null || echo 0)
+          # clamp selection to valid range
+          case "$SEL" in ''|*[!0-9]*) SEL=1 ;; esac
+          if [ "$SEL" -lt 1 ]; then SEL=1; fi
+          if [ "$total" -gt 0 ] && [ "$SEL" -gt "$total" ]; then SEL="$total"; fi
           while IFS= read -r l; do
             n=$((n+1))
             if [ "$n" -lt "$total" ]; then
