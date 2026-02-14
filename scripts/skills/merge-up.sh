@@ -19,7 +19,7 @@ fi
 
 # Gather remote branches (origin/*) excluding HEAD and main/master
 # Use for-each-ref for reliable listing
-branches="$(git for-each-ref --format='%(refname:short)' refs/remotes/origin/* 2>/dev/null | sed 's@^origin/@@' | grep -v '^HEAD$' | grep -v -E '^(main|master)$' || true)"
+branches="$(git for-each-ref --format='%(refname:short)' refs/remotes/origin/* 2>/dev/null | sed 's@^origin/@@' | grep -v '^HEAD$' | grep -v -E '^(main|master|origin)$' || true)"
 
 if [ -z "$(echo "$branches" | tr -d '[:space:]')" ]; then
   echo "$(date +'%Y-%m-%dT%H:%M:%S%z') [MERGE-UP] no branches to merge" >>"$LOGFILE"
