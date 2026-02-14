@@ -409,6 +409,8 @@ handle_command() {
     select)
       if printf '%s' "$arg" | grep -qE '^[0-9]+$'; then
         printf '%s' "$arg" > "$RUN_DIR/monitor_selected"
+        # also focus tree for interactive navigation
+        printf 'tree' > "$RUN_DIR/monitor_focus"
       else
         echo "select <n> (numeric)" >&2
       fi
