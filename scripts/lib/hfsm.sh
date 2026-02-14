@@ -204,8 +204,13 @@ hfsm_dispatch() {
     eval "handler=\${${h}__handlers[\"$s::$event\"]}"
     set -u
     if [ -n "$handler" ] && command -v "$handler" >/dev/null 2>&1; then
-      local raw out
-      raw="$("$handler" "$h" "$s" "$event" "${args[@]}")"
+      local raw out tmp rc
+      tmp="$(mktemp -t hfsm.XXXXXX 2>/dev/null || mktemp)"
+      # Run handler in the current shell so side-effects (e.g. sourced functions) persist;
+      # capture stdout/stderr to a temp file to avoid using command-substitution (which uses a subshell).
+      "$handler" "$h" "$s" "$event" "${args[@]}" >"$tmp" 2>&1 || true
+      raw="$(cat "$tmp" 2>/dev/null || true)"
+      rm -f "$tmp" 2>/dev/null || true
       # Extract last non-empty line of handler output as next-state (robust against debug logs)
       out="$(printf '%s\n' "$raw" | awk 'NF{line=$0} END{print line}')"
       # if handler printed a state name, transition to it
