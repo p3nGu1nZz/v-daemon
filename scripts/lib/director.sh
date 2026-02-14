@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 # Director agent: HFSM-based director coordinating worker skills (stubbed states)
+# Ensure running under bash even when invoked via 'sh' so hfsm and arrays work correctly.
+if [ -z "${BASH_VERSION:-}" ]; then
+  if command -v bash >/dev/null 2>&1; then
+    exec bash "$0" "$@"
+  else
+    echo "bash is required to run $0; aborting" >&2
+    exit 1
+  fi
+fi
 set -eu
 
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
