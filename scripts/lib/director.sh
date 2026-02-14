@@ -187,13 +187,19 @@ state_summarize() {
   status="ok"
   err=""
   if command -v run_autopilot_summary >/dev/null 2>&1; then
-    log "invoking run_autopilot_summary"
-    if run_with_timeout "${DIRECTOR_SKILL_TIMEOUT_SECONDS:-30}" run_autopilot_summary >/dev/null 2>&1; then
-      log "run_autopilot_summary succeeded"
+    # If the Copilot CLI is not installed, skip autopilot summary gracefully.
+    if command -v copilot >/dev/null 2>&1; then
+      log "invoking run_autopilot_summary"
+      if run_with_timeout "${DIRECTOR_SKILL_TIMEOUT_SECONDS:-30}" run_autopilot_summary >/dev/null 2>&1; then
+        log "run_autopilot_summary succeeded"
+      else
+        log "run_autopilot_summary failed or timed out (non-fatal)"
+        # treat summary failures as non-fatal so director keeps functioning; record err for diagnostics
+        status="ok"
+        err="run_autopilot_summary failed or timed out"
+      fi
     else
-      log "run_autopilot_summary failed or timed out"
-      status="error"
-      err="run_autopilot_summary failed or timed out"
+      log "copilot CLI not installed; skipping autopilot summary"
     fi
   else
     log "mock summarize: no run_autopilot_summary available"
