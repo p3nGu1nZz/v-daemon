@@ -3,11 +3,12 @@
 set -eu
 
 usage() {
-  echo "Usage: $0 [--check|--clean|--directive \"<string>\"]"
+  echo "Usage: $0 [--check|--clean|--directive \"<string>\"|--ci]"
   echo "Non-interactive by default; setup will run without prompting."
   echo "Use --check to run repository checks only (no installs)."
   echo "Use --clean to remove generated artifacts (audits, logs, run)."
   echo "Use --directive \"<string>\" to update config/settings.toml with the prime directive for agents and commit via scripts/skills/patch-repo.sh."
+  echo "Use --ci to enable CI-friendly non-interactive mode (skips some checks/install steps)."
   exit 1
 }
 
@@ -151,6 +152,7 @@ while [ "$#" -gt 0 ]; do
         shift 2
       fi
       ;;
+    --ci) CI_MODE=1; shift;;
     -h|--help) usage;;
     *) echo "Unknown argument: $1"; usage;;
   esac

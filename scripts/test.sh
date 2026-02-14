@@ -4,9 +4,9 @@ set -eu
 
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   cat <<'USAGE'
-Usage: sh scripts/test.sh [--sql]
+Usage: sh scripts/test.sh [--sql|--ci]
 
-Runs repository tests; --sql runs the sqlite smoke test (default behavior is to run SQL tests).
+Runs repository tests; --sql runs the sqlite smoke test (default behavior is to run SQL tests). Use --ci to run CI test mode (non-interactive).
 USAGE
   exit 0
 fi
@@ -28,6 +28,7 @@ fi
 # parse args
 RUN_SQL=0
 RUN_DIRECTOR=0
+CI_MODE=0
 for arg in "$@"; do
   case "$arg" in
     --sql)
@@ -35,6 +36,10 @@ for arg in "$@"; do
       ;;
     --director)
       RUN_DIRECTOR=1
+      ;;
+    --ci)
+      CI_MODE=1
+      RUN_SQL=1
       ;;
     --help|-h)
       ;;
