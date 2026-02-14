@@ -205,7 +205,16 @@ state_summarize() {
       log "invoking run_autopilot_summary"
       # allow a longer timeout for copilot responses
       if run_with_timeout "${DIRECTOR_SKILL_TIMEOUT_SECONDS:-120}" run_autopilot_summary >/dev/null 2>&1; then
-        # check canonical summary written by actions.sh
+        # ensure a canonical summary is available: if actions.sh did not write last_summary.txt,
+        # copy the most recent summary.txt from the audits directory when it looks usable.
+        latest_dir="$(ls -1dt "$DEV_AUDITS_DIR"/director-summary-* 2>/dev/null | head -n1 || true)"
+        if [ -n "$latest_dir" ] && [ -s "$latest_dir/summary.txt" ]; then
+          # skip obvious abort artifacts
+          if ! grep -qi 'Copilot CLI not found' "$latest_dir/summary.txt" 2>/dev/null && ! grep -qi 'Copilot did not provide a usable summary' "$latest_dir/summary.txt" 2>/dev/null; then
+            cp "$latest_dir/summary.txt" "$DEV_AUDITS_DIR/last_summary.txt" 2>/dev/null || true
+          fi
+        fi
+        # check canonical summary
         if [ -s "$DEV_AUDITS_DIR/last_summary.txt" ]; then
           log "run_autopilot_summary succeeded; canonical summary available"
           status="ok"
