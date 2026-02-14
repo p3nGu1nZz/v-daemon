@@ -498,8 +498,8 @@ input_loop() {
         seq_tail="$(dd bs=1 count=3 2>/dev/null < "$TTY" || true)"
       fi
       seq="$c$seq_tail"
-      # determine final byte to detect arrow direction (handles sequences like ESC[A, ESC[1;5A, ESCOA)
-      last_ch="$(printf '%s' "$seq" | tail -c 1 2>/dev/null || true)"
+      # Normalize sequence to uppercase to simplify matching and handle terminal variants
+      seq_up="$(printf '%s' "$seq" | tr '[:lower:]' '[:upper:]' 2>/dev/null || printf '%s' "$seq")"
 
       # Only adjust selection when tree has focus; clamp sel against tree_count for robust behavior
       focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
@@ -512,13 +512,14 @@ input_loop() {
         # clamp sel to max when possible
         if [ "$max" -gt 0 ] && [ "$sel" -gt "$max" ]; then sel="$max"; fi
 
-        if [ "$last_ch" = 'A' ] || [ "$last_ch" = 'a' ]; then
+        # Treat any occurrence of 'A' as Up and 'B' as Down to cover different escape sequences
+        if printf '%s' "$seq_up" | grep -q 'A' 2>/dev/null; then
           if [ "$sel" -gt 1 ]; then
             sel=$((sel-1))
           else
             sel=1
           fi
-        elif [ "$last_ch" = 'B' ] || [ "$last_ch" = 'b' ]; then
+        elif printf '%s' "$seq_up" | grep -q 'B' 2>/dev/null; then
           if [ "$max" -gt 0 ] && [ "$sel" -lt "$max" ]; then
             sel=$((sel+1))
           fi
