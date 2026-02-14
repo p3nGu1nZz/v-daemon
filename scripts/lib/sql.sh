@@ -34,8 +34,9 @@ sql_run() {
   sql="$1"
   sql_check || return 1
   mkdir -p "$(dirname "$DB_PATH")"
-  # Ensure WAL for better concurrency and then run the SQL
-  printf '%s\n' "PRAGMA journal_mode=WAL;" "$sql" | "$SQLITE_BIN" "$DB_PATH" -batch -noheader
+  # Ensure WAL for better concurrency; run the PRAGMA quietly to avoid printing its result
+  printf '%s\n' "PRAGMA journal_mode=WAL;" | "$SQLITE_BIN" "$DB_PATH" -batch -noheader >/dev/null 2>&1
+  printf '%s\n' "$sql" | "$SQLITE_BIN" "$DB_PATH" -batch -noheader
 }
 
 # Create schema for todos and dependencies
