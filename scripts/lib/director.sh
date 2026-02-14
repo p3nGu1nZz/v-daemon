@@ -110,13 +110,25 @@ log() {
 # Runtime helpers: timeout wrapper, structured state audits, and backoff files
 run_with_timeout() {
   timeout_secs="$1"; shift
-  if command -v timeout >/dev/null 2>&1; then
+  # simple validation
+  if [ -z "$timeout_secs" ]; then return 1; fi
+  if [ $# -eq 0 ]; then return 0; fi
+  cmd="$1"
+  # If 'timeout' exists and the command appears to be an external executable, prefer it.
+  if command -v timeout >/dev/null 2>&1 && [ "$(type -t "$cmd" 2>/dev/null)" != "function" ] && [ "$(type -t "$cmd" 2>/dev/null)" != "builtin" ]; then
     timeout "$timeout_secs" "$@"
     return $?
   fi
   tmpout="$(mktemp -t vdaemon.out.XXXXXX 2>/dev/null || mktemp)"
   tmperr="$(mktemp -t vdaemon.err.XXXXXX 2>/dev/null || mktemp)"
-  "$@" >"$tmpout" 2>"$tmperr" &
+  # If the command is a shell function or builtin, run it in the current shell so it can access defined functions/vars.
+  if [ "$(type -t "$cmd" 2>/dev/null)" = "function" ] || [ "$(type -t "$cmd" 2>/dev/null)" = "builtin" ]; then
+    shift
+    "$cmd" "$@" >"$tmpout" 2>"$tmperr" &
+  else
+    # external command
+    "$@" >"$tmpout" 2>"$tmperr" &
+  fi
   cmdpid=$!
   (
     sleep "$timeout_secs"
