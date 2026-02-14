@@ -480,25 +480,39 @@ input_loop() {
     fi
 
     if [ "$c" = "$ESC" ]; then
-      # read next two bytes for arrow sequences (blocking)
+      # read next bytes for escape sequences (supports longer sequences like ESC[1;5A)
       if [ "${READ_CAN_N:-0}" -eq 1 ]; then
+        # read first two bytes to avoid blocking for long sequences
         IFS= read -r -n2 seq_tail < "$TTY" 2>/dev/null || seq_tail=''
+        # attempt to read any remaining bytes quickly (non-blocking short timeout)
+        # accumulate up to 5 extra bytes; safe if read -t unsupported (it will just fail fast)
+        for i in 1 2 3 4 5; do
+          if IFS= read -r -t 0.01 -n1 ch < "$TTY" 2>/dev/null; then
+            seq_tail="$seq_tail$ch"
+          else
+            break
+          fi
+        done
       else
-        seq_tail="$(dd bs=1 count=2 2>/dev/null < "$TTY" || true)"
+        # fallback: read a few bytes (may block until bytes available)
+        seq_tail="$(dd bs=1 count=3 2>/dev/null < "$TTY" || true)"
       fi
       seq="$c$seq_tail"
-      if [ "$seq" = "$UP" ]; then
+      # determine final byte to detect arrow direction (handles sequences like ESC[A, ESC[1;5A, ESCOA)
+      last_ch="$(printf '%s' "$seq" | tail -c 1 2>/dev/null || true)"
+      if [ "$last_ch" = 'A' ] || [ "$last_ch" = 'a' ]; then
         focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
         if [ "$focus" = "tree" ]; then
           sel="$(cat "$sel_file" 2>/dev/null || echo 1)"
           if [ "$sel" -gt 1 ]; then sel=$((sel-1)); fi
           printf '%s' "$sel" > "$sel_file"
         fi
-      elif [ "$seq" = "$DOWN" ]; then
+      elif [ "$last_ch" = 'B' ] || [ "$last_ch" = 'b' ]; then
         focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
         if [ "$focus" = "tree" ]; then
           sel="$(cat "$sel_file" 2>/dev/null || echo 1)"
           max="$(cat "$tree_count_file" 2>/dev/null || echo 0)"
+          if [ -z "$max" ] || [ "$max" -lt 1 ]; then max=1; fi
           if [ "$sel" -lt "$max" ]; then sel=$((sel+1)); fi
           printf '%s' "$sel" > "$sel_file"
         fi
