@@ -673,15 +673,15 @@ monitor_foreground() {
 
   printf '%s [SYSTEM] Supervisor: %s | Daemon: %s | Uptime: %s | %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$SUP_RUNNING" "$DAEMON_RUNNING" "$UPTIME_FMT" "$SWARM_STATUS" >&2
 
-  # Stream logs by default in monitor to show recent activity above the status panel
-  STREAM_LOGS="${STREAM_LOGS:-1}"
-  LOG_TAIL_FILE="$RUN_DIR/monitor_tail_daemon"
-  SUP_TAIL_FILE="$RUN_DIR/monitor_tail_supervisor"
-  DIR_TAIL_FILE="$RUN_DIR/monitor_tail_director"
-  :> "$LOG_TAIL_FILE" 2>/dev/null || true
-  :> "$SUP_TAIL_FILE" 2>/dev/null || true
-  :> "$DIR_TAIL_FILE" 2>/dev/null || true
+  # By default, monitor-only mode should not spawn extra processes; require --logs to stream tails
+  STREAM_LOGS="${STREAM_LOGS:-0}"
   if [ "${STREAM_LOGS}" -eq 1 ]; then
+    LOG_TAIL_FILE="$RUN_DIR/monitor_tail_daemon"
+    SUP_TAIL_FILE="$RUN_DIR/monitor_tail_supervisor"
+    DIR_TAIL_FILE="$RUN_DIR/monitor_tail_director"
+    :> "$LOG_TAIL_FILE" 2>/dev/null || true
+    :> "$SUP_TAIL_FILE" 2>/dev/null || true
+    :> "$DIR_TAIL_FILE" 2>/dev/null || true
     # write tail output into files; refresher will render them to the controlled layout
     tail -n 10 -F "$LOGFILE" 2>/dev/null >>"$LOG_TAIL_FILE" &
     TAIL_D=$!
@@ -690,6 +690,9 @@ monitor_foreground() {
     tail -n 10 -F "$DIRECTOR_LOG" 2>/dev/null >>"$DIR_TAIL_FILE" &
     TAIL_DIR=$!
   else
+    LOG_TAIL_FILE=""
+    SUP_TAIL_FILE=""
+    DIR_TAIL_FILE=""
     TAIL_D=""
     TAIL_S=""
     TAIL_DIR=""
