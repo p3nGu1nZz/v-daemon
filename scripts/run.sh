@@ -529,6 +529,39 @@ input_loop() {
       continue
     fi
 
+    # handle cases where a leading '[' or 'O' was read (partial escape sequence) — try to consume following bytes and treat as arrow keys
+    if [ "$c" = '[' ] || [ "$c" = 'O' ]; then
+      if [ "${READ_CAN_N:-0}" -eq 1 ]; then
+        IFS= read -r -t 0.02 -n3 seq_tail < "$TTY" 2>/dev/null || seq_tail=''
+      else
+        seq_tail="$(dd bs=1 count=3 2>/dev/null < "$TTY" || true)"
+      fi
+      seq="$c$seq_tail"
+      seq_up="$(printf '%s' "$seq" | tr '[:lower:]' '[:upper:]' 2>/dev/null || printf '%s' "$seq")"
+      focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
+      if [ "$focus" = "tree" ]; then
+        sel="$(cat "$sel_file" 2>/dev/null || echo 1)"
+        max="$(cat "$tree_count_file" 2>/dev/null || echo 0)"
+        case "$sel" in ''|*[!0-9]*) sel=1 ;; esac
+        case "$max" in ''|*[!0-9]*) max=0 ;; esac
+        if [ "$max" -gt 0 ] && [ "$sel" -gt "$max" ]; then sel="$max"; fi
+
+        if printf '%s' "$seq_up" | grep -q 'A' 2>/dev/null; then
+          if [ "$sel" -gt 1 ]; then
+            sel=$((sel-1))
+          else
+            sel=1
+          fi
+        elif printf '%s' "$seq_up" | grep -q 'B' 2>/dev/null; then
+          if [ "$max" -gt 0 ] && [ "$sel" -lt "$max" ]; then
+            sel=$((sel+1))
+          fi
+        fi
+        printf '%s' "$sel" > "$sel_file"
+      fi
+      continue
+    fi
+
     # support j/k as up/down navigation in tree focus as a fallback for terminals where arrow keys are unreliable
     if [ "$c" = 'k' ] || [ "$c" = 'K' ]; then
       focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
