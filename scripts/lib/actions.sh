@@ -28,8 +28,25 @@ run_autopilot_summary() {
   else
     OWNER_PID=$(cat "$LOCKDIR/pid" 2>/dev/null || true)
     if [ -n "$OWNER_PID" ] && kill -0 "$OWNER_PID" 2>/dev/null; then
-      printf '%s [AGENT-DIRECTOR] Autopilot summary: already running (PID %s), skipping\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$OWNER_PID" >>"$LOGFILE" 2>/dev/null || true
-      return 0
+      printf '%s [AGENT-DIRECTOR] Autopilot summary: already running (PID %s), waiting for completion\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$OWNER_PID" >>"$LOGFILE" 2>/dev/null || true
+      # Wait for the existing lock to clear (bounded by DIRECTOR_LOCK_WAIT_SECONDS)
+      WAIT_SECONDS="${DIRECTOR_LOCK_WAIT_SECONDS:-120}"
+      start_ts=$(date +%s)
+      while [ -d "$LOCKDIR" ] && [ $(( $(date +%s) - start_ts )) -lt "$WAIT_SECONDS" ]; do
+        sleep 1
+      done
+      if [ -d "$LOCKDIR" ]; then
+        printf '%s [AGENT-DIRECTOR] Autopilot summary: existing lock did not clear after %s seconds; skipping this run\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$WAIT_SECONDS" >>"$LOGFILE" 2>/dev/null || true
+        return 1
+      fi
+      # Attempt to acquire the lock now that it cleared
+      if mkdir "$LOCKDIR" 2>/dev/null; then
+        echo "$$" >"$LOCKDIR/pid" 2>/dev/null || true
+        CREATED_LOCK=1
+      else
+        printf '%s [AGENT-DIRECTOR] Autopilot summary: unable to acquire lock after wait; skipping\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
+        return 1
+      fi
     else
       # stale lockdir, try to remove and acquire
       rm -rf "$LOCKDIR" 2>/dev/null || true
