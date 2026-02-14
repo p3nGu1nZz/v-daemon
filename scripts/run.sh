@@ -528,6 +528,30 @@ input_loop() {
       continue
     fi
 
+    # support j/k as up/down navigation in tree focus as a fallback for terminals where arrow keys are unreliable
+    if [ "$c" = 'k' ] || [ "$c" = 'K' ]; then
+      focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
+      if [ "$focus" = "tree" ]; then
+        sel="$(cat "$sel_file" 2>/dev/null || echo 1)"
+        case "$sel" in ''|*[!0-9]*) sel=1 ;; esac
+        if [ "$sel" -gt 1 ]; then sel=$((sel-1)); fi
+        printf '%s' "$sel" > "$sel_file"
+        continue
+      fi
+    fi
+    if [ "$c" = 'j' ] || [ "$c" = 'J' ]; then
+      focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
+      if [ "$focus" = "tree" ]; then
+        sel="$(cat "$sel_file" 2>/dev/null || echo 1)"
+        max="$(cat "$tree_count_file" 2>/dev/null || echo 0)"
+        case "$sel" in ''|*[!0-9]*) sel=1 ;; esac
+        case "$max" in ''|*[!0-9]*) max=0 ;; esac
+        if [ "$max" -gt 0 ] && [ "$sel" -lt "$max" ]; then sel=$((sel+1)); fi
+        printf '%s' "$sel" > "$sel_file"
+        continue
+      fi
+    fi
+
     if [ "$c" = "$TAB" ]; then
       focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
       if [ "$focus" = "cmd" ]; then printf 'tree' > "$focus_file"; else printf 'cmd' > "$focus_file"; fi
