@@ -205,6 +205,21 @@ fi
         printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot failed to produce any output after %d attempts\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$MAX_ATTEMPTS" >>"$LOGFILE" 2>/dev/null || true
       fi
 
+      # If copilot produced no stdout/stderr, write diagnostics to copilot.err for debugging
+      if [ ! -s "$out_dir/copilot.err" ]; then
+        {
+          printf '=== copilot diagnostics (no stdout/stderr captured) ===\n'
+          printf 'command -v copilot: %s\n' "$(command -v copilot 2>/dev/null || echo '(not found)')"
+          printf 'which copilot: %s\n' "$(which copilot 2>/dev/null || echo '(not found)')"
+          copilot --version 2>&1 || true
+          printf 'PATH=%s\n' "$PATH"
+          printf 'COPILOT_MODEL=%s\n' "${COPILOT_MODEL:-}"
+          printf 'prompt head (first 8k bytes):\n'
+          head -c 8192 "$active_prompt" 2>/dev/null || true
+        } >> "$out_dir/copilot.err" 2>/dev/null || true
+        printf '%s [AGENT-DIRECTOR] Autopilot summary: no copilot stderr captured; diagnostics written to %s/copilot.err\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" >>"$LOGFILE" 2>/dev/null || true
+      fi
+
       # After saving diagnostics, abort without local fallback
       printf '%s [AGENT-DIRECTOR] Autopilot summary: no usable summary produced; aborting (no local fallback)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
       cleanup_tmp || true
