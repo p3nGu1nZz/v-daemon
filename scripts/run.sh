@@ -869,6 +869,20 @@ monitor_foreground() {
         SEL="$(cat "$RUN_DIR/monitor_selected" 2>/dev/null || echo 1)"
         FOCUS="$(cat "$RUN_DIR/monitor_focus" 2>/dev/null || echo cmd)"
         BUF="$(cat "$RUN_DIR/monitor_input_buf" 2>/dev/null || echo '')"
+        # If buffer starts with a Tab (some terminals/pipes deliver it into the buffer), toggle focus and strip it
+        if [ -n "$BUF" ]; then
+          first_ch="$(printf '%s' "$BUF" | head -c 1)"
+          TAB_CH="$(printf '\t')"
+          if [ "$first_ch" = "$TAB_CH" ]; then
+            # toggle focus
+            cur_focus="$(cat "$RUN_DIR/monitor_focus" 2>/dev/null || echo cmd)"
+            if [ "$cur_focus" = "cmd" ]; then printf 'tree' > "$RUN_DIR/monitor_focus"; else printf 'cmd' > "$RUN_DIR/monitor_focus"; fi
+            # strip leading tab from buffer both in-memory and on-disk
+            BUF="$(printf '%s' "$BUF" | tail -c +2)"
+            printf '%s' "$BUF" > "$RUN_DIR/monitor_input_buf"
+            FOCUS="$(cat "$RUN_DIR/monitor_focus" 2>/dev/null || echo cmd)"
+          fi
+        fi
         if [ "${status_line}" != "${LAST_STATUS_LINE}" ] || [ "$tree_count" != "${LAST_TREE_COUNT:-}" ] || [ "$SEL" != "${LAST_SEL:-}" ] || [ "$FOCUS" != "${LAST_FOCUS:-}" ] || [ "$BUF" != "${LAST_BUF:-}" ] || [ "${CURSOR_TOG:-0}" != "${LAST_CURSOR_TOG:-}" ]; then
           # move to bottom and up by (tree_count+message_count+1) lines to leave room for an input prompt and any command output
           printf '\033[s\033[999B' >&2
