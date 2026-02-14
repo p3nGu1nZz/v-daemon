@@ -97,7 +97,10 @@ _hfsm_build_ancestors() {
   while [ -n "$cur" ]; do
     out+=("$cur")
     local parent
+    # Temporarily disable nounset to allow missing array entries when caller used set -u
+    set +u
     eval "parent=\${${h}__parent[\"$cur\"]}"
+    set -u
     cur="$parent"
   done
   printf '%s\n' "${out[@]}"
@@ -148,7 +151,10 @@ hfsm_transition() {
     local s="${cur_arr[$idx]}"
     if [ "$s" = "$lca" ]; then break; fi
     local fn
+    # Temporarily disable nounset to allow missing array entries when caller used set -u
+    set +u
     eval "fn=\${${h}__exit[\"$s\"]}"
+    set -u
     if [ -n "$fn" ] && command -v "$fn" >/dev/null 2>&1; then
       "$fn" "$h" "$s" "$target"
     fi
@@ -168,7 +174,10 @@ hfsm_transition() {
   for ((j=start;j<${#target_rev[@]};j++)); do
     local s="${target_rev[$j]}"
     local fn
+    # Temporarily disable nounset to allow missing array entries when caller used set -u
+    set +u
     eval "fn=\${${h}__enter[\"$s\"]}"
+    set -u
     if [ -n "$fn" ] && command -v "$fn" >/dev/null 2>&1; then
       "$fn" "$h" "$s" "$cur"
     fi
@@ -190,7 +199,10 @@ hfsm_dispatch() {
   local s="$cur"
   while [ -n "$s" ]; do
     local handler
+    # Temporarily disable nounset to allow missing array entries when caller used set -u
+    set +u
     eval "handler=\${${h}__handlers[\"$s::$event\"]}"
+    set -u
     if [ -n "$handler" ] && command -v "$handler" >/dev/null 2>&1; then
       local raw out
       raw="$("$handler" "$h" "$s" "$event" "${args[@]}")"
