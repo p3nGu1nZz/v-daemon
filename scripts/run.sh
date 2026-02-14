@@ -923,10 +923,6 @@ monitor_foreground() {
             log_tail_count=$(printf '%s\n' "$tail_buf" | sed '/^$/d' | wc -l 2>/dev/null || echo 0)
           fi
 
-          move_up=$((tree_count + 1 + message_count + log_tail_count))
-          if [ "$move_up" -gt 0 ]; then
-            printf '\033[%dA' "$move_up" >&2
-          fi
 
           n=0
           total=$(wc -l <"$tree_tmp" 2>/dev/null || echo 0)
@@ -985,7 +981,7 @@ monitor_foreground() {
           printf '\033[2K\r%s\n' "$prompt" >&2
 
           # print final status line and restore cursor
-          printf '\033[2K\r%s\n\033[u' "$status_line" >&2
+          # status_line already printed earlier in full-screen redraw
           LAST_STATUS_LINE="$status_line"
           LAST_TREE_COUNT="$tree_count"
           LAST_SEL="$SEL"
