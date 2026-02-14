@@ -582,14 +582,41 @@ input_loop() {
 
     # Append character to buffer
     printf '%s' "$c" >> "$buf_file"
-    # If a Tab ended up in the buffer as first char (some terminals/pipes), treat it as a focus toggle and strip it
+    # If a Tab or navigation keystroke ended up in the buffer as first char (some terminals/pipes), handle it and strip it
     first="$(head -c 1 "$buf_file" 2>/dev/null || true)"
-    if [ -n "$first" ] && [ "$first" = "$TAB" ]; then
-      focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
-      if [ "$focus" = "cmd" ]; then printf 'tree' > "$focus_file"; else printf 'cmd' > "$focus_file"; fi
-      # remove first character from buffer
-      rest="$(tail -c +2 "$buf_file" 2>/dev/null || true)"
-      printf '%s' "$rest" > "$buf_file"
+    if [ -n "$first" ]; then
+      TAB_CH="$(printf '\t')"
+      if [ "$first" = "$TAB_CH" ]; then
+        focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
+        if [ "$focus" = "cmd" ]; then printf 'tree' > "$focus_file"; else printf 'cmd' > "$focus_file"; fi
+        # remove first character from buffer
+        rest="$(tail -c +2 "$buf_file" 2>/dev/null || true)"
+        printf '%s' "$rest" > "$buf_file"
+      elif [ "$first" = 'k' ] || [ "$first" = 'K' ]; then
+        focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
+        if [ "$focus" = "tree" ]; then
+          sel="$(cat "$sel_file" 2>/dev/null || echo 1)"
+          case "$sel" in ''|*[!0-9]*) sel=1 ;; esac
+          if [ "$sel" -gt 1 ]; then sel=$((sel-1)); fi
+          printf '%s' "$sel" > "$sel_file"
+          # remove first character from buffer
+          rest="$(tail -c +2 "$buf_file" 2>/dev/null || true)"
+          printf '%s' "$rest" > "$buf_file"
+        fi
+      elif [ "$first" = 'j' ] || [ "$first" = 'J' ]; then
+        focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
+        if [ "$focus" = "tree" ]; then
+          sel="$(cat "$sel_file" 2>/dev/null || echo 1)"
+          max="$(cat "$tree_count_file" 2>/dev/null || echo 0)"
+          case "$sel" in ''|*[!0-9]*) sel=1 ;; esac
+          case "$max" in ''|*[!0-9]*) max=0 ;; esac
+          if [ "$max" -gt 0 ] && [ "$sel" -lt "$max" ]; then sel=$((sel+1)); fi
+          printf '%s' "$sel" > "$sel_file"
+          # remove first character from buffer
+          rest="$(tail -c +2 "$buf_file" 2>/dev/null || true)"
+          printf '%s' "$rest" > "$buf_file"
+        fi
+      fi
     fi
   done
 
