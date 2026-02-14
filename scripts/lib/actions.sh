@@ -107,9 +107,8 @@ fi
   printf '%s [AGENT-DIRECTOR] Autopilot summary: starting\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
   printf '%s [AGENT-DIRECTOR] Autopilot summary: starting (audit dir: %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" >>"$LOGFILE" 2>/dev/null || true
 
-  if command -v copilot >/dev/null 2>&1 || [ -x /usr/local/bin/copilot ]; then
-    COPILOT_BIN="$(command -v copilot 2>/dev/null || echo /usr/local/bin/copilot)"
-    COPILOT_HELP=$("$COPILOT_BIN" --help 2>&1 || true)
+  if command -v copilot >/dev/null 2>&1; then
+    COPILOT_HELP=$(copilot --help 2>&1 || true)
     COPILOT_OPTS=""
     # Always request gpt-5-mini; prefer explicit flags if supported
     if echo "$COPILOT_HELP" | grep -q -- '--model'; then
@@ -155,7 +154,7 @@ fi
       else
         PROMPT_TEXT=$(cat "$active_prompt" 2>/dev/null || true)
       fi
-      if $COPILOT_ENV "$COPILOT_BIN" -s -p "$PROMPT_TEXT" $COPILOT_OPTS >"$summary_file" 2>"$out_dir/copilot.err"; then
+      if $COPILOT_ENV copilot -s -p "$PROMPT_TEXT" $COPILOT_OPTS >"$summary_file" 2>"$out_dir/copilot.err"; then
         copilot_status=0
       else
         copilot_status=$?
@@ -313,9 +312,8 @@ fi
   # Build plan input (context + summary + plan instructions)
   cat "$context_file" "$summary_file" "$plan_prompt_file" > "$plan_in" 2>/dev/null || true
 
-  if command -v copilot >/dev/null 2>&1 || [ -x /usr/local/bin/copilot ]; then
-    COPILOT_BIN="$(command -v copilot 2>/dev/null || echo /usr/local/bin/copilot)"
-    COPILOT_HELP=$("$COPILOT_BIN" --help 2>&1 || true)
+  if command -v copilot >/dev/null 2>&1; then
+    COPILOT_HELP=$(copilot --help 2>&1 || true)
     COPILOT_OPTS=""
     if echo "$COPILOT_HELP" | grep -q -- '--model'; then
       COPILOT_OPTS="--model gpt-5-mini"
@@ -345,7 +343,7 @@ fi
       else
         PLAN_TEXT=$(cat "$plan_in" 2>/dev/null || true)
       fi
-      if $COPILOT_ENV "$COPILOT_BIN" -s -p "$PLAN_TEXT" $COPILOT_OPTS >"$plan_raw" 2>"$plan_err"; then
+      if $COPILOT_ENV copilot -s -p "$PLAN_TEXT" $COPILOT_OPTS >"$plan_raw" 2>"$plan_err"; then
         :
       fi
       if [ -s "$plan_raw" ]; then
