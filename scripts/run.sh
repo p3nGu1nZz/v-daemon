@@ -453,8 +453,11 @@ input_loop() {
   CR="$(printf '\\r')"
 
   while :; do
+    # determine controlling terminal to read from (fallback to stdin)
+    TTY="/dev/tty"
+    if [ ! -r "$TTY" ]; then TTY="/dev/stdin"; fi
     # read one byte (blocking until input available) from the controlling terminal
-    c="$(dd bs=1 count=1 2>/dev/null < /dev/tty || true)"
+    c="$(dd bs=1 count=1 2>/dev/null < "$TTY" || true)"
     if [ -z "$c" ]; then
       continue
     fi
@@ -518,6 +521,7 @@ input_loop() {
 }
 
 monitor_foreground() {
+  printf '\033[H\033[2J' >&2
   printf 'Monitor: live swarm status (press Ctrl-C to exit)\n' >&2
   touch "$LOGFILE" "$SUP_LOGFILE" "$DIRECTOR_LOG"
 
@@ -595,13 +599,19 @@ monitor_foreground() {
 
   # Stream logs by default in monitor to show recent activity above the status panel
   STREAM_LOGS="${STREAM_LOGS:-1}"
+  LOG_TAIL_FILE="$RUN_DIR/monitor_tail_daemon"
+  SUP_TAIL_FILE="$RUN_DIR/monitor_tail_supervisor"
+  DIR_TAIL_FILE="$RUN_DIR/monitor_tail_director"
+  :> "$LOG_TAIL_FILE" 2>/dev/null || true
+  :> "$SUP_TAIL_FILE" 2>/dev/null || true
+  :> "$DIR_TAIL_FILE" 2>/dev/null || true
   if [ "${STREAM_LOGS}" -eq 1 ]; then
-    # show the last few lines for context, then follow
-    tail -n 10 -F "$LOGFILE" 2>/dev/null &
+    # write tail output into files; refresher will render them to the controlled layout
+    tail -n 10 -F "$LOGFILE" 2>/dev/null >>"$LOG_TAIL_FILE" &
     TAIL_D=$!
-    tail -n 10 -F "$SUP_LOGFILE" 2>/dev/null | sed '/\[SUPERVISOR\]/! s/^/[SUPERVISOR] /' &
+    tail -n 10 -F "$SUP_LOGFILE" 2>/dev/null | sed '/\[SUPERVISOR\]/! s/^/[SUPERVISOR] /' >>"$SUP_TAIL_FILE" &
     TAIL_S=$!
-    tail -n 10 -F "$DIRECTOR_LOG" 2>/dev/null &
+    tail -n 10 -F "$DIRECTOR_LOG" 2>/dev/null >>"$DIR_TAIL_FILE" &
     TAIL_DIR=$!
   else
     TAIL_D=""
