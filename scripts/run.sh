@@ -636,7 +636,8 @@ input_loop() {
         printf '%s' "$sel" > "$sel_file"
       fi
       # strip escape bytes and common CSI characters from buffer
-      clean="$(printf '%s' "$BUF" | sed "s/$ESC_CH//g; s/\\[//g; s/O//g")"
+      # Remove ESC, CSI markers and the trailing A/B indicators that are part of arrow sequences
+      clean="$(printf '%s' "$BUF" | sed "s/$ESC_CH//g; s/\\[//g; s/O//g; s/A//g; s/B//g")"
       printf '%s' "$clean" > "$buf_file"
       # recompute first char after sanitizing
       first="$(head -c 1 "$buf_file" 2>/dev/null || true)"
