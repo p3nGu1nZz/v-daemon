@@ -454,8 +454,7 @@ input_loop() {
 
   while :; do
     # determine controlling terminal to read from (fallback to stdin)
-    TTY="/dev/tty"
-    if [ ! -r "$TTY" ]; then TTY="/dev/stdin"; fi
+    if [ -t 0 ]; then TTY="/dev/tty"; else TTY="/dev/stdin"; fi
     # read one byte (blocking until input available) from the controlling terminal
     c="$(dd bs=1 count=1 2>/dev/null < "$TTY" || true)"
     if [ -z "$c" ]; then
@@ -514,6 +513,15 @@ input_loop() {
 
     # Append character to buffer
     printf '%s' "$c" >> "$buf_file"
+    # If a Tab ended up in the buffer as first char (some terminals/pipes), treat it as a focus toggle and strip it
+    first="$(head -c 1 "$buf_file" 2>/dev/null || true)"
+    if [ -n "$first" ] && [ "$first" = "$TAB" ]; then
+      focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
+      if [ "$focus" = "cmd" ]; then printf 'tree' > "$focus_file"; else printf 'cmd' > "$focus_file"; fi
+      # remove first character from buffer
+      rest="$(tail -c +2 "$buf_file" 2>/dev/null || true)"
+      printf '%s' "$rest" > "$buf_file"
+    fi
   done
 
   # restore terminal
