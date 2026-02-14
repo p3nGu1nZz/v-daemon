@@ -216,10 +216,11 @@ JSON
 fi
 
 commit_msg="update:${tree_hash}"
+TRAILER='Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>'
 
 # Create the commit
 echo "Committing with message: $commit_msg"
-if ! git commit -m "$commit_msg"; then
+if ! git commit -m "$commit_msg" -m "$TRAILER"; then
   echo "git commit failed." >&2
   git --no-pager status >"$OUTDIR/status.txt" || true
   cat >"$OUTDIR/report.json" <<JSON
