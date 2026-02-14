@@ -464,7 +464,7 @@ input_loop() {
 
     if [ "$c" = "$ESC" ]; then
       # read next two bytes for arrow sequences (blocking)
-      seq_tail="$(dd bs=1 count=2 2>/dev/null < /dev/tty || true)"
+      seq_tail="$(dd bs=1 count=2 2>/dev/null < "$TTY" || true)"
       seq="$c$seq_tail"
       if [ "$seq" = "$UP" ]; then
         focus="$(cat "$focus_file" 2>/dev/null || echo cmd)"
@@ -872,7 +872,15 @@ monitor_foreground() {
             message_count=0
           fi
 
-          move_up=$((tree_count + 1 + message_count))
+          # compute tail lines to display from log tail files
+          log_tail_count=0
+          tail_buf=""
+          if [ -f "$LOG_TAIL_FILE" ] || [ -f "$SUP_TAIL_FILE" ] || [ -f "$DIR_TAIL_FILE" ]; then
+            tail_buf="$( ( [ -f "$LOG_TAIL_FILE" ] && tail -n 6 "$LOG_TAIL_FILE" || true; [ -f "$SUP_TAIL_FILE" ] && tail -n 6 "$SUP_TAIL_FILE" || true; [ -f "$DIR_TAIL_FILE" ] && tail -n 6 "$DIR_TAIL_FILE" || true ) | tail -n 6 )"
+            log_tail_count=$(printf '%s\n' "$tail_buf" | sed '/^$/d' | wc -l 2>/dev/null || echo 0)
+          fi
+
+          move_up=$((tree_count + 1 + message_count + log_tail_count))
           if [ "$move_up" -gt 0 ]; then
             printf '\033[%dA' "$move_up" >&2
           fi
@@ -898,6 +906,13 @@ monitor_foreground() {
               printf '\033[2K\r%s%s\n' "$prefix" "$l" >&2
             fi
           done < "$tree_tmp"
+
+          # print log tail lines (rendered from background tail files)
+          if [ -n "$tail_buf" ]; then
+            printf '%s\n' "$tail_buf" | while IFS= read -r tl; do
+              printf '\033[2K\r%s\n' "   $tl" >&2
+            done
+          fi
 
           # print any last command output lines (from handle_command)
           if [ -f "$RUN_DIR/monitor_last_msg" ]; then
