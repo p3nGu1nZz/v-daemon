@@ -601,7 +601,7 @@ monitor_foreground() {
     fi
   done
 
-  if [ "$WORKER_COUNT" -gt 0 ] || ([ -f "$SUP_PIDFILE" ] && kill -0 "$(cat \"$SUP_PIDFILE\")" 2>/dev/null); then
+  if [ "$WORKER_COUNT" -gt 0 ] || ([ -f "$SUP_PIDFILE" ] && kill -0 "$(cat "$SUP_PIDFILE")" 2>/dev/null); then
     SWARM_STATUS="swarm running ($WORKER_COUNT workers)"
   else
     SWARM_STATUS="swarm offline"
@@ -780,7 +780,7 @@ monitor_foreground() {
           done
         else
           sup_pid=""
-          [ -f "$SUP_PIDFILE" ] && sup_pid="$(cat \"$SUP_PIDFILE\" 2>/dev/null || true)"
+          [ -f "$SUP_PIDFILE" ] && sup_pid="$(cat "$SUP_PIDFILE" 2>/dev/null || true)"
           if [ -n "$sup_pid" ] && kill -0 "$sup_pid" 2>/dev/null; then status_plain="running"; status_col="$GREEN"; else status_plain="stopped"; status_col="$YELLOW"; fi
           printf '%s\n' "  [S] supervisor (pid:${sup_pid:-}) ${status_col}${status_plain}${RESET}" >> "$tree_tmp"
         fi
@@ -799,7 +799,7 @@ monitor_foreground() {
           done
         else
           dm_pid=""
-          [ -f "$DAEMON_PIDFILE" ] && dm_pid="$(cat \"$DAEMON_PIDFILE\" 2>/dev/null || true)"
+          [ -f "$DAEMON_PIDFILE" ] && dm_pid="$(cat "$DAEMON_PIDFILE" 2>/dev/null || true)"
           if [ -n "$dm_pid" ] && kill -0 "$dm_pid" 2>/dev/null; then status_plain="running"; status_col="$GREEN"; else status_plain="stopped"; status_col="$YELLOW"; fi
           printf '%s\n' "  [M] daemon (pid:${dm_pid:-}) ${status_col}${status_plain}${RESET}" >> "$tree_tmp"
         fi
@@ -823,7 +823,7 @@ monitor_foreground() {
           done
         else
           dir_pid=""
-          [ -f "$DIRECTOR_PIDFILE" ] && dir_pid="$(cat \"$DIRECTOR_PIDFILE\" 2>/dev/null || true)"
+          [ -f "$DIRECTOR_PIDFILE" ] && dir_pid="$(cat "$DIRECTOR_PIDFILE" 2>/dev/null || true)"
           if [ -n "$dir_pid" ] && kill -0 "$dir_pid" 2>/dev/null; then
             status_plain="running"; status_col="$GREEN"
           else
@@ -852,17 +852,17 @@ monitor_foreground() {
         # Fallback: build a minimal tree from ps output
         printf '%s\n' "[v] v-daemon | $SWARM_STATUS | uptime: $uptime_fmt" >> "$tree_tmp"
         sup_pid=""
-        [ -f "$SUP_PIDFILE" ] && sup_pid="$(cat \"$SUP_PIDFILE\" 2>/dev/null || true)"
+        [ -f "$SUP_PIDFILE" ] && sup_pid="$(cat "$SUP_PIDFILE" 2>/dev/null || true)"
         if [ -n "$sup_pid" ] && kill -0 "$sup_pid" 2>/dev/null; then status_plain="running"; status_col="$GREEN"; else status_plain="stopped"; status_col="$YELLOW"; fi
         printf '%s\n' "  [S] supervisor (pid:${sup_pid:-}) ${status_col}${status_plain}${RESET}" >> "$tree_tmp"
 
         dm_pid=""
-        [ -f "$DAEMON_PIDFILE" ] && dm_pid="$(cat \"$DAEMON_PIDFILE\" 2>/dev/null || true)"
+        [ -f "$DAEMON_PIDFILE" ] && dm_pid="$(cat "$DAEMON_PIDFILE" 2>/dev/null || true)"
         if [ -n "$dm_pid" ] && kill -0 "$dm_pid" 2>/dev/null; then status_plain="running"; status_col="$GREEN"; else status_plain="stopped"; status_col="$YELLOW"; fi
         printf '%s\n' "  [M] daemon (pid:${dm_pid:-}) ${status_col}${status_plain}${RESET}" >> "$tree_tmp"
 
         dir_pid=""
-        [ -f "$DIRECTOR_PIDFILE" ] && dir_pid="$(cat \"$DIRECTOR_PIDFILE\" 2>/dev/null || true)"
+        [ -f "$DIRECTOR_PIDFILE" ] && dir_pid="$(cat "$DIRECTOR_PIDFILE" 2>/dev/null || true)"
         if [ -n "$dir_pid" ] && kill -0 "$dir_pid" 2>/dev/null; then status_plain="running"; status_col="$GREEN"; else status_plain="stopped"; status_col="$YELLOW"; fi
         printf '%s\n' "  [D] director (pid:${dir_pid:-}) ${status_col}${status_plain}${RESET}" >> "$tree_tmp"
 
@@ -881,7 +881,7 @@ monitor_foreground() {
         # Only redraw anchored status when it changes to reduce flicker
         if [ "${status_line}" != "${LAST_STATUS_LINE}" ]; then
           # when no tree, print status and leave
-          printf '\033[s\033[999B\033[2K\r%s\033[u' "$status_line" >&2
+          printf '\033[s\033[999B\033[2K\r%s\n\033[u' "$status_line" >&2
           LAST_STATUS_LINE="$status_line"
         fi
       else
@@ -904,8 +904,9 @@ monitor_foreground() {
           fi
         fi
         if [ "${status_line}" != "${LAST_STATUS_LINE}" ] || [ "$tree_count" != "${LAST_TREE_COUNT:-}" ] || [ "$SEL" != "${LAST_SEL:-}" ] || [ "$FOCUS" != "${LAST_FOCUS:-}" ] || [ "$BUF" != "${LAST_BUF:-}" ] || [ "${CURSOR_TOG:-0}" != "${LAST_CURSOR_TOG:-}" ]; then
-          # move to bottom and up by (tree_count+message_count+1) lines to leave room for an input prompt and any command output
-          printf '\033[s\033[999B' >&2
+          # full-screen redraw: move cursor home and clear screen, then print status header
+          printf '\033[H\033[2J' >&2
+          printf '%s\n' "$status_line" >&2
 
           # compute message count (last command output) and include in move calculation
           if [ -f "$RUN_DIR/monitor_last_msg" ]; then
@@ -983,8 +984,8 @@ monitor_foreground() {
           fi
           printf '\033[2K\r%s\n' "$prompt" >&2
 
-          # print final status line (no newline) and restore cursor
-          printf '\033[2K\r%s\033[u' "$status_line" >&2
+          # print final status line and restore cursor
+          printf '\033[2K\r%s\n\033[u' "$status_line" >&2
           LAST_STATUS_LINE="$status_line"
           LAST_TREE_COUNT="$tree_count"
           LAST_SEL="$SEL"
