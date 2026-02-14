@@ -196,28 +196,47 @@ state_load_actions() {
 state_summarize() {
   audit_state_start "summarize"
   log "state=summarize"
-  status="ok"
+  status="error"
   err=""
+  next_state="sleep"
+  # Require run_autopilot_summary and copilot presence
   if command -v run_autopilot_summary >/dev/null 2>&1; then
-    # If the Copilot CLI is not installed, skip autopilot summary gracefully.
     if command -v copilot >/dev/null 2>&1; then
       log "invoking run_autopilot_summary"
-      if run_with_timeout "${DIRECTOR_SKILL_TIMEOUT_SECONDS:-30}" run_autopilot_summary >/dev/null 2>&1; then
-        log "run_autopilot_summary succeeded"
+      # allow a longer timeout for copilot responses
+      if run_with_timeout "${DIRECTOR_SKILL_TIMEOUT_SECONDS:-120}" run_autopilot_summary >/dev/null 2>&1; then
+        # check canonical summary written by actions.sh
+        if [ -s "$DEV_AUDITS_DIR/last_summary.txt" ]; then
+          log "run_autopilot_summary succeeded; canonical summary available"
+          status="ok"
+          err=""
+          next_state="next_steps"
+        else
+          log "run_autopilot_summary completed but canonical summary missing; check audits for details"
+          status="error"
+          err="no canonical summary produced"
+          next_state="sleep"
+        fi
       else
-        log "run_autopilot_summary failed or timed out (non-fatal)"
-        # treat summary failures as non-fatal so director keeps functioning; record err for diagnostics
-        status="ok"
+        log "run_autopilot_summary failed or timed out; check audits for copilot.err"
+        status="error"
         err="run_autopilot_summary failed or timed out"
+        next_state="sleep"
       fi
     else
-      log "copilot CLI not installed; skipping autopilot summary"
+      log "copilot CLI not installed; autopilot summary required; aborting"
+      status="error"
+      err="copilot CLI not installed"
+      next_state="sleep"
     fi
   else
-    log "mock summarize: no run_autopilot_summary available"
+    log "mock summarize: no run_autopilot_summary available; cannot proceed"
+    status="error"
+    err="run_autopilot_summary missing"
+    next_state="sleep"
   fi
-  audit_state_end "summarize" "next_steps" "$status" "$err"
-  echo "next_steps"
+  audit_state_end "summarize" "$next_state" "$status" "$err"
+  echo "$next_state"
 }
 
 state_next_steps() {

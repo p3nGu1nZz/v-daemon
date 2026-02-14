@@ -237,8 +237,10 @@ fi
       # Move sanitized version into the canonical summary file and keep copies
       mv "$cleaned" "$summary_file" 2>/dev/null || cp "$cleaned" "$summary_file" 2>/dev/null || true
       cp "$summary_file" "$out_dir/copilot_sanitized.txt" 2>/dev/null || true
+      # copy sanitized summary to canonical last_summary so director can check
+      cp "$summary_file" "$DEV_AUDITS_DIR/last_summary.txt" 2>/dev/null || true
       sed -n '1,200p' "$summary_file" >>"$LOGFILE" 2>/dev/null || true
-      printf '%s [AGENT-DIRECTOR] Autopilot summary: sanitized copilot output saved to %s/copilot_sanitized.txt (raw: %s/copilot_raw.txt)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" "$out_dir" || true
+      printf '%s [AGENT-DIRECTOR] Autopilot summary: sanitized copilot output saved to %s/copilot_sanitized.txt (raw: %s/copilot_raw.txt); canonical summary saved to %s/last_summary.txt\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" "$out_dir" "$DEV_AUDITS_DIR" >>"$LOGFILE" 2>/dev/null || true
 
       # Prepare and print excerpt
       excerpt_raw=$(tr '\n' ' ' <"$summary_file" | sed 's/[[:space:]]\+/ /g' | sed 's/^ *//;s/ *$//')
