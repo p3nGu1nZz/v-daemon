@@ -23,7 +23,7 @@ This document summarizes the interactive monitor (scripts/run.sh --monitor) and 
 
 ## Patching and patch-repo
 
-- `scripts/skills/patch-repo.sh` stages changes, creates a deterministic commit (message `update:<tree-hash>`), and **pushes by default**. The script writes a report to `run/skills/patch-repo/<timestamp>/report.json` which includes `commit`, `pushed`, and `status` fields — inspect this report after any automated patch attempt.
+- `scripts/skills/patch-repo.sh` stages changes, creates a deterministic commit (message `update:<tree-hash>`), and does NOT push by default (use `--push` to enable pushing). The script writes a report to `run/skills/patch-repo/<timestamp>/report.json` which includes `commit`, `pushed`, and `status` fields — inspect this report after any automated patch attempt.
 - Safety: The repository includes `config/settings.toml` and runtime guards (e.g., `director.allow_execute`) that should be reviewed before enabling automatic patching in production.
 
 ## Troubleshooting

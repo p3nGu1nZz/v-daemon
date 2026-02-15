@@ -10,8 +10,8 @@ if [ -z "${BASH_VERSION:-}" ]; then
 fi
 set -euo pipefail
 
-# YOLO default true (allow pushing). If set to false/0/no, skip pushing upstream but still commit and attempt local merges.
-YOLO="${YOLO:-true}"
+# YOLO default false (do not push by default). Set YOLO=true or pass --push to enable automatic pushing.
+YOLO="${YOLO:-false}"
 YOLO_LC="$(printf '%s' "$YOLO" | tr '[:upper:]' '[:lower:]')"
 if [ "$YOLO_LC" = "false" ] || [ "$YOLO_LC" = "0" ] || [ "$YOLO_LC" = "no" ] || [ "$YOLO_LC" = "n" ]; then
   YOLO=false
@@ -23,16 +23,18 @@ fi
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/skills/patch-repo.sh [--help]
+Usage: scripts/skills/patch-repo.sh [--help] [--push|--no-push]
 
 Automate a simple git patch workflow and capture outputs under run/skills/patch-repo/<timestamp>/.
 
 Options:
   --help      Show this help message and exit.
+  --push      Enable automatic push of commits to upstream (default: disabled).
+  --no-push   Explicitly disable automatic push (default behavior).
 
 Notes:
   - The commit message uses the index tree hash (git write-tree) to uniquely identify the snapshot: update:<tree-hash>
-  - If the current branch has no upstream, the script will run: git push -u origin <branch>
+  - If the current branch has no upstream and --push is used, the script will run: git push -u origin <branch>
   - This script assumes it's run from inside a git repository and that git is configured.
 USAGE
 }
@@ -42,6 +44,12 @@ while [ $# -gt 0 ]; do
     --help|-h)
       usage
       exit 0
+      ;;
+    --push)
+      YOLO=true
+      ;;
+    --no-push)
+      YOLO=false
       ;;
     *)
       echo "Unknown argument: $1" >&2
