@@ -163,6 +163,9 @@ sql_init() {
   fi
   "$SQLITE_BIN" "$DB_PATH" -batch -noheader "PRAGMA foreign_keys = ON;" >/dev/null 2>&1 || true
   "$SQLITE_BIN" "$DB_PATH" -batch -noheader "PRAGMA busy_timeout = 5000;" >/dev/null 2>&1 || true
+  # Backfill missing timestamp columns for existing rows
+  "$SQLITE_BIN" "$DB_PATH" -batch -noheader "UPDATE todos SET created_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE created_at IS NULL OR created_at = '';" >/dev/null 2>&1 || true
+  "$SQLITE_BIN" "$DB_PATH" -batch -noheader "UPDATE todos SET updated_at = COALESCE(NULLIF(updated_at,''), created_at, strftime('%Y-%m-%dT%H:%M:%SZ','now')) WHERE updated_at IS NULL OR updated_at = '';" >/dev/null 2>&1 || true
   # Restrict DB file permissions where possible
   chmod 600 "$DB_PATH" >/dev/null 2>&1 || true
 }
