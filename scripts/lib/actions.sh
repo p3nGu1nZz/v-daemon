@@ -25,7 +25,20 @@ run_autopilot_summary() {
   if mkdir "$LOCKDIR" 2>/dev/null; then
     echo "$$" >"$LOCKDIR/pid" 2>/dev/null || true
     echo "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >"$LOCKDIR/ts" 2>/dev/null || true
-    ps -p $$ -o args= 2>/dev/null >"$LOCKDIR/cmdline" 2>/dev/null || true
+    # Attempt to capture command line of this process robustly for lock metadata
+    cmdline="$(ps -p $$ -o args= 2>/dev/null || true)"
+    if [ -n "$cmdline" ]; then
+      printf '%s' "$cmdline" > "$LOCKDIR/cmdline" 2>/dev/null || true
+    else
+      cmdline="$(ps -p $$ -o cmd= 2>/dev/null || true)"
+      if [ -n "$cmdline" ]; then
+        printf '%s' "$cmdline" > "$LOCKDIR/cmdline" 2>/dev/null || true
+      elif [ -r "/proc/$$/cmdline" ]; then
+        tr '\0' ' ' < "/proc/$$/cmdline" > "$LOCKDIR/cmdline" 2>/dev/null || true
+      else
+        printf '' > "$LOCKDIR/cmdline" 2>/dev/null || true
+      fi
+    fi
     CREATED_LOCK=1
   else
     OWNER_PID=$(cat "$LOCKDIR/pid" 2>/dev/null || true)
@@ -126,8 +139,12 @@ run_autopilot_summary() {
       else
         # start a background tail that appends new director log lines to the system log
         ( tail -n 0 -F "$LOGFILE" 2>/dev/null | while IFS= read -r ln; do printf '%s\n' "$ln" >>"$SYSTEM_LOGFILE" 2>/dev/null || true; done ) &
-        echo $! > "$TAIL_PIDFILE" 2>/dev/null || true
-        printf '%s [AGENT-DIRECTOR] log-dup: started tail pid %s to mirror to %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$(cat \"$TAIL_PIDFILE\" 2>/dev/null || echo '')" "$SYSTEM_LOGFILE" >>"$LOGFILE" 2>/dev/null || true
+        TAIL_PID=$!
+        # persist pidfile robustly and allow a tiny pause for filesystem syncs on mounted drives
+        printf '%s' "$TAIL_PID" > "$TAIL_PIDFILE" 2>/dev/null || true
+        sleep 0.05
+        TAIL_PID_REPORTED="$(cat "$TAIL_PIDFILE" 2>/dev/null || echo '')"
+        printf '%s [AGENT-DIRECTOR] log-dup: started tail pid %s to mirror to %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$TAIL_PID_REPORTED" "$SYSTEM_LOGFILE" >>"$LOGFILE" 2>/dev/null || true
       fi
     fi
   fi
