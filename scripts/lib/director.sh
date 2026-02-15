@@ -133,10 +133,19 @@ run_with_timeout() {
   (
     sleep "$timeout_secs"
     if kill -0 "$cmdpid" 2>/dev/null; then
-      kill "$cmdpid" 2>/dev/null || true
-      # Give the command a short grace period to exit and run its cleanup traps
-      sleep 3
-      kill -9 "$cmdpid" 2>/dev/null || true
+      # Attempt to kill the entire process group of the child so any spawned copilot or helper
+      # processes do not remain orphaned and hold locks.
+      pgid="$(ps -o pgid= "$cmdpid" 2>/dev/null | tr -d '[:space:]' || true)"
+      if [ -n "$pgid" ]; then
+        kill -TERM -"$pgid" 2>/dev/null || kill "$cmdpid" 2>/dev/null || true
+        # Give the group a short grace period to exit and run cleanup traps
+        sleep 3
+        kill -9 -"$pgid" 2>/dev/null || kill -9 "$cmdpid" 2>/dev/null || true
+      else
+        kill "$cmdpid" 2>/dev/null || true
+        sleep 3
+        kill -9 "$cmdpid" 2>/dev/null || true
+      fi
     fi
   ) &
   killer=$!
