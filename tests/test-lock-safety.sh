@@ -23,7 +23,8 @@ ps -p "$SLEEP_PID" -o args= 2>/dev/null > "$LOCKDIR/cmdline" 2>/dev/null || true
 # Make the stale threshold zero so actions.sh will attempt cleanup immediately
 export DIRECTOR_LOCK_STALE_SECONDS=0
 export DIRECTOR_LOCK_WAIT_SECONDS=1
-# Ensure SYSTEM_LOGFILE is empty to avoid FIFO blocking during test
+# Ensure env init is skipped and SYSTEM_LOGFILE is empty to avoid FIFO blocking during test
+export ACTIONS_NO_ENV_INIT=1
 export SYSTEM_LOGFILE=""
 # Run the autopilot summary which should detect and clean the stale lock
 sh "$REPO_ROOT/scripts/lib/actions.sh" run || true
