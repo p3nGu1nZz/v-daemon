@@ -44,7 +44,7 @@ case "$KEEP" in
     exit 2 ;;
 esac
 
-for logfile in "$LOG_DIR"/daemon.log "$LOG_DIR"/supervisor.log; do
+for logfile in "$LOG_DIR"/daemon.log "$LOG_DIR"/supervisor.log "$LOG_DIR"/system.log "$LOG_DIR"/director.log; do
   [ -f "$logfile" ] || continue
   if [ ! -s "$logfile" ]; then
     echo "Skipping empty log: $(basename "$logfile")"

@@ -1231,6 +1231,8 @@ case "${1:-}" in
       sh "$SCRIPT_DIR/lib/rotate_logs.sh" || echo "Log rotation failed" >&2
     fi
     start_supervisor_bg
+    # Run watchdog once after supervisor start to cleanup duplicate tail -F processes
+    sh "${REPO_ROOT}/scripts/lib/watchdog.sh" >/dev/null 2>&1 || true
     if [ "$MONITOR" -eq 1 ]; then
       MONITOR_MANAGES_PROCESS=1
       monitor_foreground
