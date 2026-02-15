@@ -74,6 +74,7 @@ run_autopilot_summary() {
   summary_file="$out_dir/summary.txt"
 
   # Redirect autopilot function stdout/stderr to director logfile to avoid duplicate console prints
+  mkdir -p "$(dirname "$LOGFILE")" 2>/dev/null || true
   exec >>"$LOGFILE" 2>&1
 
   prompt_file=$(mktemp "/tmp/director_prompt_${run_ts}.XXXXXX") || prompt_file="/tmp/director_prompt_${run_ts}.$$"
