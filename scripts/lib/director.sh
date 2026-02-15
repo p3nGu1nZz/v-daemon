@@ -234,7 +234,7 @@ state_summarize() {
           next_state="sleep"
         fi
       else
-        log "run_autopilot_summary failed or timed out; check audits for copilot.err"
+        log "state=summarize: run_autopilot_summary failed or timed out; check audits for copilot.err"
         status="error"
         err="run_autopilot_summary failed or timed out"
         # Attempt to detect and remove a stale director summary lock left by a killed child so future runs can proceed

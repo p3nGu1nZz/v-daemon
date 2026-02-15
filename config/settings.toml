@@ -29,3 +29,5 @@ allow_execute = true
 sandbox_branch_prefix = "director/sandbox-"
 # Run interval for the director's autopilot cycles (seconds)
 interval_seconds = 60
+# Timeout for Copilot CLI invocations (seconds)
+copilot_timeout_seconds = 300
