@@ -189,6 +189,9 @@ fi
           copilot_status=$?
         fi
       fi
+      # Capture any copilot-related processes and a full ps snapshot for diagnostics
+      ps -eo pid,ppid,pgid,cmd 2>/dev/null | grep -i 'copilot' | grep -v grep > "$out_dir/copilot.processlist" 2>/dev/null || true
+      ps -eo pid,ppid,pgid,cmd 2>/dev/null > "$out_dir/ps_snapshot.txt" 2>/dev/null || true
 
       if [ -s "$summary_file" ]; then
         cleaned=$(mktemp "/tmp/director_cleaned_${run_ts}.XXXXXX") || cleaned="$summary_file"
