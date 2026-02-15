@@ -141,17 +141,52 @@ run_autopilot_summary() {
     mkdir -p "$(dirname \"$SYSTEM_LOGFILE\")" 2>/dev/null || true
     TAIL_PIDFILE="${RUN_DIR:-$REPO_ROOT/run}/director-log-dup.pid"
     if command -v tail >/dev/null 2>&1; then
-      if [ -f "$TAIL_PIDFILE" ] && kill -0 "$(cat \"$TAIL_PIDFILE\" 2>/dev/null)" 2>/dev/null; then
-        :
-      else
-        # start a background tail that appends new director log lines to the system log
-        ( tail -n 0 -F "$LOGFILE" 2>/dev/null | while IFS= read -r ln; do printf '%s\n' "$ln" >>"$SYSTEM_LOGFILE" 2>/dev/null || true; done ) &
-        TAIL_PID=$!
-        # persist pidfile robustly and allow a tiny pause for filesystem syncs on mounted drives
-        printf '%s' "$TAIL_PID" > "$TAIL_PIDFILE" 2>/dev/null || true
-        sleep 0.05
-        TAIL_PID_REPORTED="$(cat "$TAIL_PIDFILE" 2>/dev/null || echo '')"
-        printf '%s [AGENT-DIRECTOR] log-dup: started tail pid %s to mirror to %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$TAIL_PID_REPORTED" "$SYSTEM_LOGFILE" >>"$LOGFILE" 2>/dev/null || true
+      # If pidfile exists and points to a running tail process watching the same logfile, reuse it
+      EXIST_PID=""
+      if [ -f "$TAIL_PIDFILE" ]; then
+        EXIST_PID="$(cat "$TAIL_PIDFILE" 2>/dev/null || true)"
+        if [ -n "$EXIST_PID" ] && kill -0 "$EXIST_PID" 2>/dev/null; then
+          EXIST_CMD="$(ps -p "$EXIST_PID" -o args= 2>/dev/null || true)"
+          if printf '%s' "$EXIST_CMD" | grep -q -F "tail" 2>/dev/null && printf '%s' "$EXIST_CMD" | grep -q -F "$LOGFILE" 2>/dev/null; then
+            TAIL_PID_REPORTED="$EXIST_PID"
+            printf '%s [AGENT-DIRECTOR] log-dup: reusing existing tail pid %s to mirror to %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$TAIL_PID_REPORTED" "$SYSTEM_LOGFILE" >>"$LOGFILE" 2>/dev/null || true
+          else
+            # stale or unrelated pidfile; remove it and allow a fresh tail to start
+            rm -f "$TAIL_PIDFILE" 2>/dev/null || true
+            EXIST_PID=""
+          fi
+        else
+          rm -f "$TAIL_PIDFILE" 2>/dev/null || true
+          EXIST_PID=""
+        fi
+      fi
+
+      if [ -z "$EXIST_PID" ]; then
+        # Attempt to start a tail process and write pid atomically; retry if it dies immediately
+        retries=0
+        max_retries=3
+        while [ $retries -le $max_retries ]; do
+          ( tail -n 0 -F "$LOGFILE" 2>/dev/null | while IFS= read -r ln; do printf '%s\n' "$ln" >>"$SYSTEM_LOGFILE" 2>/dev/null || true; done ) &
+          TAIL_PID=$!
+          TMP_PIDFILE="$TAIL_PIDFILE.$$.tmp"
+          printf '%s' "$TAIL_PID" > "$TMP_PIDFILE" 2>/dev/null || true
+          mv "$TMP_PIDFILE" "$TAIL_PIDFILE" 2>/dev/null || true
+          # small pause to let the OS schedule the child
+          sleep 0.1
+          if kill -0 "$TAIL_PID" 2>/dev/null; then
+            TAIL_PID_REPORTED="$(cat "$TAIL_PIDFILE" 2>/dev/null || echo '')"
+            printf '%s [AGENT-DIRECTOR] log-dup: started tail pid %s to mirror to %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$TAIL_PID_REPORTED" "$SYSTEM_LOGFILE" >>"$LOGFILE" 2>/dev/null || true
+            break
+          else
+            # tail exited early; cleanup and retry
+            rm -f "$TAIL_PIDFILE" 2>/dev/null || true
+            retries=$((retries+1))
+            sleep 0.1
+          fi
+        done
+        if [ $retries -gt $max_retries ]; then
+          printf '%s [AGENT-DIRECTOR] log-dup: failed to start tail after %d attempts\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$max_retries" >>"$LOGFILE" 2>/dev/null || true
+        fi
       fi
     fi
   fi
