@@ -1082,8 +1082,33 @@ monitor_foreground() {
           case "$SEL" in ''|*[!0-9]*) SEL=1 ;; esac
           if [ "$SEL" -lt 1 ]; then SEL=1; fi
           if [ "$total" -gt 0 ] && [ "$SEL" -gt "$total" ]; then SEL="$total"; fi
+
+          # determine insertion point for log tail to appear approximately in the middle of the terminal
+          LINES=$(tput lines 2>/dev/null || echo 24)
+          mid_line=$((LINES/2))
+          insert_after=$((mid_line - (tail_count/2) - 3))
+          if [ "$insert_after" -lt 0 ]; then insert_after=0; fi
+          if [ "$insert_after" -gt "$total" ]; then insert_after=$total; fi
+          inserted_tail_printed=0
+
+          # print tail before tree if insert_after <= 0
+          if [ "$insert_after" -le 0 ] && [ -n "$tail_buf" ]; then
+            printf '%s\n' "$tail_buf" | while IFS= read -r tl; do
+              printf '\033[2K\r%s\n' "   $tl" >&2
+            done
+            inserted_tail_printed=1
+          fi
+
+          # print tree, inserting tail at computed point
           while IFS= read -r l; do
             n=$((n+1))
+            if [ "$inserted_tail_printed" -eq 0 ] && [ "$n" -ge "$insert_after" ] && [ -n "$tail_buf" ]; then
+              printf '%s\n' "$tail_buf" | while IFS= read -r tl; do
+                printf '\033[2K\r%s\n' "   $tl" >&2
+              done
+              inserted_tail_printed=1
+            fi
+
             if [ "$n" -lt "$total" ]; then
               prefix='|- '
             else
@@ -1102,8 +1127,8 @@ monitor_foreground() {
             fi
           done < "$tree_tmp"
 
-          # print log tail lines (rendered from background tail files)
-          if [ -n "$tail_buf" ]; then
+          # if tail not yet printed, print it after tree
+          if [ "$inserted_tail_printed" -eq 0 ] && [ -n "$tail_buf" ]; then
             printf '%s\n' "$tail_buf" | while IFS= read -r tl; do
               printf '\033[2K\r%s\n' "   $tl" >&2
             done
