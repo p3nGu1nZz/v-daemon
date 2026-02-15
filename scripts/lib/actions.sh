@@ -9,7 +9,8 @@ DEV_AUDITS_DIR="${DEV_AUDITS_DIR:-$REPO_ROOT/audits}"
 mkdir -p "$DEV_AUDITS_DIR"
 
 # Load environment, console, and logger helpers if available for consistent env and logging
-if [ -f "$REPO_ROOT/scripts/lib/env.sh" ]; then
+# Allow tests to skip env_init by setting ACTIONS_NO_ENV_INIT=1
+if [ -f "$REPO_ROOT/scripts/lib/env.sh" ] && [ "${ACTIONS_NO_ENV_INIT:-}" != "1" ]; then
   . "$REPO_ROOT/scripts/lib/env.sh"
   env_init "$REPO_ROOT"
 fi
