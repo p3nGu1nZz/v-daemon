@@ -157,11 +157,11 @@ case "$cmd" in
       echo "  ${t}: ${cnt}"
     done
     echo "table_count: $(sql_run "SELECT count(*) FROM sqlite_master WHERE type='table';")"
-    journal_mode_val=$("$SQLITE_BIN" "$DB_PATH" "PRAGMA journal_mode;" 2>/dev/null || true)
+    journal_mode_val=$("$SQLITE_BIN" "$DB_PATH" -batch -noheader "PRAGMA journal_mode;" 2>/dev/null || true)
     echo "journal_mode: $journal_mode_val"
-    foreign_keys_val=$("$SQLITE_BIN" "$DB_PATH" "PRAGMA foreign_keys;" 2>/dev/null || true)
+    foreign_keys_val=$("$SQLITE_BIN" "$DB_PATH" -batch -noheader "PRAGMA foreign_keys;" 2>/dev/null || true)
     echo "foreign_keys: $foreign_keys_val"
-    busy_timeout_val=$("$SQLITE_BIN" "$DB_PATH" "PRAGMA busy_timeout;" 2>/dev/null || true)
+    busy_timeout_val=$("$SQLITE_BIN" "$DB_PATH" -batch -noheader "PRAGMA busy_timeout;" 2>/dev/null || true)
     echo "busy_timeout: $busy_timeout_val"
     if command -v lsof >/dev/null 2>&1; then
       echo "connected_processes:"
