@@ -219,8 +219,8 @@ state_summarize() {
   if command -v run_autopilot_summary >/dev/null 2>&1; then
     if command -v copilot >/dev/null 2>&1; then
       log "invoking run_autopilot_summary"
-      # allow a longer timeout for copilot responses
-      if run_with_timeout "${DIRECTOR_SKILL_TIMEOUT_SECONDS:-120}" run_autopilot_summary >/dev/null 2>&1; then
+      # allow a longer timeout for copilot responses (align with DIRECTOR_COPILOT_TIMEOUT_SECONDS)
+      if run_with_timeout "${DIRECTOR_COPILOT_TIMEOUT_SECONDS:-300}" run_autopilot_summary >/dev/null 2>&1; then
         # check canonical summary written by actions.sh
         if [ -s "$DEV_AUDITS_DIR/last_summary.txt" ]; then
           log "run_autopilot_summary succeeded; canonical summary available"
