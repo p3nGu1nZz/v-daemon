@@ -63,14 +63,35 @@ run_autopilot_summary() {
       STALE_SECONDS="${DIRECTOR_LOCK_STALE_SECONDS:-600}"
       if [ "$owner_age" -ge "$STALE_SECONDS" ] && [ "$owner_age" -gt 0 ]; then
         printf '%s [AGENT-DIRECTOR] Autopilot summary: lock PID %s owner_cmd="%s" age=%ss exceeds stale threshold=%ss; attempting to terminate and clean up\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$OWNER_PID" "$OWNER_META" "$owner_age" "$STALE_SECONDS" >>"$LOGFILE" 2>/dev/null || true
-        # Try graceful shutdown first, then escalate
-        if kill -TERM "$OWNER_PID" 2>/dev/null; then
-          sleep 3
-          if kill -0 "$OWNER_PID" 2>/dev/null; then
-            kill -9 "$OWNER_PID" 2>/dev/null || true
+        # Safety checks: ensure owner process matches stored metadata and UID before attempting termination
+        OWNER_PROC_CMD="$( [ -r "/proc/$OWNER_PID/cmdline" ] && tr '\0' ' ' < "/proc/$OWNER_PID/cmdline" 2>/dev/null || echo '' )"
+        OWNER_UID="$(ps -o uid= -p "$OWNER_PID" 2>/dev/null | tr -d '[:space:]' || echo '')"
+        CUR_UID="$(id -u 2>/dev/null || echo '')"
+        SAFE_TO_KILL=0
+        # Require UID match to avoid killing unrelated users' processes
+        if [ -n "$OWNER_UID" ] && [ "$OWNER_UID" != "$CUR_UID" ]; then
+          printf '%s [AGENT-DIRECTOR] Autopilot summary: owner PID %s UID(%s) differs from current UID(%s); not killing\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$OWNER_PID" "$OWNER_UID" "$CUR_UID" >>"$LOGFILE" 2>/dev/null || true
+        else
+          # If we have stored owner metadata, ensure it appears in the actual proc cmdline (best-effort)
+          if [ -n "$OWNER_META" ] && [ -n "$OWNER_PROC_CMD" ]; then
+            if printf '%s' "$OWNER_PROC_CMD" | grep -F -q "$OWNER_META"; then SAFE_TO_KILL=1; fi
+          else
+            SAFE_TO_KILL=1
           fi
         fi
-        rm -rf "$LOCKDIR" 2>/dev/null || true
+        if [ "$SAFE_TO_KILL" -eq 1 ]; then
+          # Try graceful shutdown first, then escalate
+          if kill -TERM "$OWNER_PID" 2>/dev/null; then
+            sleep 3
+            if kill -0 "$OWNER_PID" 2>/dev/null; then
+              kill -9 "$OWNER_PID" 2>/dev/null || true
+            fi
+          fi
+          rm -rf "$LOCKDIR" 2>/dev/null || true
+        else
+          printf '%s [AGENT-DIRECTOR] Autopilot summary: owner PID %s not safely terminable; skipping kill and leaving lock in place\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$OWNER_PID" >>"$LOGFILE" 2>/dev/null || true
+          return 1
+        fi
         # Attempt to acquire the lock now that we've cleaned it
         if mkdir "$LOCKDIR" 2>/dev/null; then
           echo "$$" >"$LOCKDIR/pid" 2>/dev/null || true

@@ -58,22 +58,46 @@ sql_create_schema() {
   mkdir -p "$(dirname "$DB_PATH")"
   cat <<'SQL' | "$SQLITE_BIN" "$DB_PATH"
 BEGIN;
+-- Todos table with stricter constraints
 CREATE TABLE IF NOT EXISTS todos (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   description TEXT,
-  status TEXT DEFAULT 'pending',
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','in_progress','done','blocked')),
   created_at TEXT,
   updated_at TEXT
 );
+-- Dependencies with foreign keys back to todos for integrity
 CREATE TABLE IF NOT EXISTS todo_deps (
-  todo_id TEXT,
-  depends_on TEXT,
-  PRIMARY KEY (todo_id, depends_on)
+  todo_id TEXT NOT NULL,
+  depends_on TEXT NOT NULL,
+  PRIMARY KEY (todo_id, depends_on),
+  FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE,
+  FOREIGN KEY (depends_on) REFERENCES todos(id) ON DELETE CASCADE
 );
 -- Helpful indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_todos_status_created_at ON todos (status, created_at);
 CREATE INDEX IF NOT EXISTS idx_todo_deps_depends_on ON todo_deps (depends_on);
+
+-- Triggers to ensure timestamps are present and updated
+DROP TRIGGER IF EXISTS todos_set_timestamps_after_insert;
+CREATE TRIGGER todos_set_timestamps_after_insert
+AFTER INSERT ON todos
+FOR EACH ROW
+WHEN NEW.created_at IS NULL OR NEW.created_at = ''
+BEGIN
+  UPDATE todos SET created_at = strftime('%Y-%m-%dT%H:%M:%SZ','now'), updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id = NEW.id;
+END;
+
+DROP TRIGGER IF EXISTS todos_set_updated_at_after_update;
+CREATE TRIGGER todos_set_updated_at_after_update
+AFTER UPDATE ON todos
+FOR EACH ROW
+WHEN NEW.updated_at = OLD.updated_at
+BEGIN
+  UPDATE todos SET updated_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id = NEW.id;
+END;
+
 COMMIT;
 SQL
 }
