@@ -171,10 +171,23 @@ fi
       else
         PROMPT_TEXT=$(cat "$active_prompt" 2>/dev/null || true)
       fi
-      if $COPILOT_ENV copilot -s -p "$PROMPT_TEXT" $COPILOT_OPTS >"$summary_file" 2>"$out_dir/copilot.err"; then
-        copilot_status=0
+      # Use timeout wrapper if available to limit copilot hang time
+      TIMEOUT_CMD=""
+      if command -v timeout >/dev/null 2>&1; then
+        TIMEOUT_CMD="timeout ${DIRECTOR_COPILOT_TIMEOUT_SECONDS:-110}"
+      fi
+      if [ -n "$TIMEOUT_CMD" ]; then
+        if $COPILOT_ENV $TIMEOUT_CMD copilot -s -p "$PROMPT_TEXT" $COPILOT_OPTS >"$summary_file" 2>"$out_dir/copilot.err"; then
+          copilot_status=0
+        else
+          copilot_status=$?
+        fi
       else
-        copilot_status=$?
+        if $COPILOT_ENV copilot -s -p "$PROMPT_TEXT" $COPILOT_OPTS >"$summary_file" 2>"$out_dir/copilot.err"; then
+          copilot_status=0
+        else
+          copilot_status=$?
+        fi
       fi
 
       if [ -s "$summary_file" ]; then
@@ -375,8 +388,19 @@ fi
       else
         PLAN_TEXT=$(cat "$plan_in" 2>/dev/null || true)
       fi
-      if $COPILOT_ENV copilot -s -p "$PLAN_TEXT" $COPILOT_OPTS >"$plan_raw" 2>"$plan_err"; then
-        :
+      # Use timeout wrapper for plan generation if available
+      TIMEOUT_CMD=""
+      if command -v timeout >/dev/null 2>&1; then
+        TIMEOUT_CMD="timeout ${DIRECTOR_COPILOT_TIMEOUT_SECONDS:-110}"
+      fi
+      if [ -n "$TIMEOUT_CMD" ]; then
+        if $COPILOT_ENV $TIMEOUT_CMD copilot -s -p "$PLAN_TEXT" $COPILOT_OPTS >"$plan_raw" 2>"$plan_err"; then
+          :
+        fi
+      else
+        if $COPILOT_ENV copilot -s -p "$PLAN_TEXT" $COPILOT_OPTS >"$plan_raw" 2>"$plan_err"; then
+          :
+        fi
       fi
       if [ -s "$plan_raw" ]; then
         # Keep only obvious bullet or numbered lines and normalize numbering to bullets
