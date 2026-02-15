@@ -44,6 +44,13 @@ run_autopilot_summary() {
     OWNER_PID=$(cat "$LOCKDIR/pid" 2>/dev/null || true)
     OWNER_META=""
     if [ -f "$LOCKDIR/cmdline" ]; then OWNER_META="$(cat \"$LOCKDIR/cmdline\" 2>/dev/null || true)"; fi
+    # If cmdline file is empty, attempt to probe the live process for diagnostics (fallback)
+    if [ -z "$OWNER_META" ] && [ -n "$OWNER_PID" ] && kill -0 "$OWNER_PID" 2>/dev/null; then
+      OWNER_META="$(ps -p "$OWNER_PID" -o args= 2>/dev/null || true)"
+      if [ -z "$OWNER_META" ] && [ -r "/proc/$OWNER_PID/cmdline" ]; then
+        OWNER_META="$(tr '\0' ' ' < "/proc/$OWNER_PID/cmdline" 2>/dev/null || true)"
+      fi
+    fi
     if [ -n "$OWNER_PID" ] && kill -0 "$OWNER_PID" 2>/dev/null; then
       # determine lock age (seconds) using the timestamp file if present
       LOCK_TS_FILE="$LOCKDIR/ts"
