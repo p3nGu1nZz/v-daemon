@@ -79,6 +79,21 @@ run_autopilot_summary() {
             SAFE_TO_KILL=1
           fi
         fi
+        # Additional safeguard: ensure the process start time predates the lock creation to avoid killing
+        # a different process that has since reused the PID. Use ps etimes (elapsed seconds) to compute
+        # the process start epoch and compare with the lock timestamp (best-effort).
+        if [ "$SAFE_TO_KILL" -eq 1 ]; then
+          if [ -n "$OWNER_PID" ] && kill -0 "$OWNER_PID" 2>/dev/null; then
+            proc_etimes=$(ps -p "$OWNER_PID" -o etimes= 2>/dev/null | tr -d '[:space:]' || echo '')
+            if [ -n "$proc_etimes" ] && [ -n "${lock_epoch:-}" ]; then
+              proc_start_epoch=$(( $(date +%s) - proc_etimes ))
+              if [ "$proc_start_epoch" -gt "$lock_epoch" ]; then
+                printf '%s [AGENT-DIRECTOR] Autopilot summary: owner PID %s start=%s > lock_ts=%s; skipping kill (possible PID reuse)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$OWNER_PID" "$proc_start_epoch" "$lock_epoch" >>"$LOGFILE" 2>/dev/null || true
+                SAFE_TO_KILL=0
+              fi
+            fi
+          fi
+        fi
         if [ "$SAFE_TO_KILL" -eq 1 ]; then
           # Try graceful shutdown first, then escalate
           if kill -TERM "$OWNER_PID" 2>/dev/null; then
