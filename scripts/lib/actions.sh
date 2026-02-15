@@ -177,19 +177,25 @@ fi
         TIMEOUT_CMD="timeout ${DIRECTOR_COPILOT_TIMEOUT_SECONDS:-300}"
       fi
 
+      # Determine isolation command to start copilot in its own session if available
+      ISOLATE_CMD=""
+      if command -v setsid >/dev/null 2>&1; then
+        ISOLATE_CMD="setsid"
+      fi
+
       # record start timestamp for diagnostics
       attempt_start_ts="$(date +'%Y-%m-%dT%H:%M:%S%z')"
       printf '%s\n' "$attempt_start_ts" > "$out_dir/copilot.start_ts" 2>/dev/null || true
 
       if [ -n "$TIMEOUT_CMD" ]; then
-        # run copilot under timeout wrapper
-        if $COPILOT_ENV $TIMEOUT_CMD copilot -s -p "$PROMPT_TEXT" $COPILOT_OPTS >"$summary_file" 2>"$out_dir/copilot.err"; then
+        # run copilot under timeout wrapper and in its own session to avoid signal leakage
+        if $COPILOT_ENV $TIMEOUT_CMD $ISOLATE_CMD copilot -s -p "$PROMPT_TEXT" $COPILOT_OPTS >"$summary_file" 2>"$out_dir/copilot.err"; then
           copilot_status=0
         else
           copilot_status=$?
         fi
       else
-        if $COPILOT_ENV copilot -s -p "$PROMPT_TEXT" $COPILOT_OPTS >"$summary_file" 2>"$out_dir/copilot.err"; then
+        if $COPILOT_ENV $ISOLATE_CMD copilot -s -p "$PROMPT_TEXT" $COPILOT_OPTS >"$summary_file" 2>"$out_dir/copilot.err"; then
           copilot_status=0
         else
           copilot_status=$?
@@ -418,12 +424,19 @@ fi
       if command -v timeout >/dev/null 2>&1; then
         TIMEOUT_CMD="timeout ${DIRECTOR_COPILOT_TIMEOUT_SECONDS:-300}"
       fi
+      # Determine isolation command for copilot plan invocation
+      ISOLATE_CMD=""
+      if command -v setsid >/dev/null 2>&1; then
+        ISOLATE_CMD="setsid"
+      fi
       if [ -n "$TIMEOUT_CMD" ]; then
-        if $COPILOT_ENV $TIMEOUT_CMD copilot -s -p "$PLAN_TEXT" $COPILOT_OPTS >"$plan_raw" 2>"$plan_err"; then
+        if $COPILOT_ENV $TIMEOUT_CMD $ISOLATE_CMD copilot -s -p "$PLAN_TEXT" $COPILOT_OPTS >"$plan_raw" 2>"$plan_err"; then
+          :
+        else
           :
         fi
       else
-        if $COPILOT_ENV copilot -s -p "$PLAN_TEXT" $COPILOT_OPTS >"$plan_raw" 2>"$plan_err"; then
+        if $COPILOT_ENV $ISOLATE_CMD copilot -s -p "$PLAN_TEXT" $COPILOT_OPTS >"$plan_raw" 2>"$plan_err"; then
           :
         fi
       fi
