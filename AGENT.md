@@ -10,7 +10,7 @@ Key conventions
 Prompts & Director
 
 - Canonical prompts are centralized in scripts/lib/prompts.sh and are the authoritative source for prompts used by Director autopilot and skills.
-- Director autopilot entrypoint is scripts/lib/actions.sh; it constructs a repository snapshot, invokes the Copilot CLI to produce summaries and plans, and writes audit artifacts under audits/ and run/skills/<skill>/.
+- Director autopilot entrypoint is scripts/lib/actions.sh; it constructs a repository snapshot, invokes the Copilot CLI to produce summaries and plans (Copilot CLI is required — no local fallback; default model gpt-5-mini), and writes audit artifacts under audits/ and run/skills/<skill>/. Configure runtime timeout with DIRECTOR_COPILOT_TIMEOUT_SECONDS (default 300s).
 - Autopilot uses locking (audits/director-summary.lock) to avoid concurrent runs; check audits/ and run/ for per-run diagnostics.
 
 Docs and specs automation

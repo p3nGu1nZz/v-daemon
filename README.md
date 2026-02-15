@@ -53,6 +53,7 @@ Recent updates (2026-02-13):
 
 - Architecture: `docs/architecture.md`
 - Agent docs: `AGENT.md` and `.github/skills/`
+- Monitoring & Director: `docs/monitor-director.md` (monitor TUI, system.log location, director/copilot behavior)
 - Runtime config: `config/settings.toml`
 
 ## Contributing
