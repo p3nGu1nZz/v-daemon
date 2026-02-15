@@ -1,6 +1,9 @@
 #!/bin/sh
 set -eu
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
 usage() { echo "Usage: $0 [--summary_path PATH] [--max-tasks N] [--output json|text]"; exit 1; }
 SUMMARY_PATH=""
 MAX_TASKS=6
@@ -18,14 +21,14 @@ done
 
 if [ -z "$SUMMARY_PATH" ]; then
   # prefer summary.json, but fall back to review.json for compatibility
-  SUMMARY_PATH=$(printf "%s\n" run/skills/review-repo/*/summary.json 2>/dev/null | head -n1 || true)
+  SUMMARY_PATH=$(printf "%s\n" "$REPO_ROOT/run/skills/review-repo"/*/summary.json 2>/dev/null | head -n1 || true)
   if [ -z "$SUMMARY_PATH" ]; then
-    SUMMARY_PATH=$(printf "%s\n" run/skills/review-repo/*/review.json 2>/dev/null | head -n1 || true)
+    SUMMARY_PATH=$(printf "%s\n" "$REPO_ROOT/run/skills/review-repo"/*/review.json 2>/dev/null | head -n1 || true)
   fi
 fi
 
 timestamp=$(date -u +"%Y%m%dT%H%M%SZ")
-out="run/skills/next-steps/$timestamp"
+out="$REPO_ROOT/run/skills/next-steps/$timestamp"
 mkdir -p "$out"
 
 # build a couple of default tasks

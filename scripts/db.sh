@@ -50,8 +50,8 @@ case "$cmd" in
     [ -n "$table" ] || die "usage: show-table <table>"
     sql_check || die "sqlite3 not available"
     sql_run "SELECT sql FROM sqlite_master WHERE type='table' AND name='${table}';"
-    echo "---- rows (first 50, raw) ----"
-    sql_run "SELECT * FROM \"${table}\" LIMIT 50;"
+    echo "---- rows (first 50) ----"
+    sql_run "SELECT * FROM \"${table}\" LIMIT 50;" pretty
     ;;
   view)
     table="$2"
