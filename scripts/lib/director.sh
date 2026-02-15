@@ -134,7 +134,8 @@ run_with_timeout() {
     sleep "$timeout_secs"
     if kill -0 "$cmdpid" 2>/dev/null; then
       kill "$cmdpid" 2>/dev/null || true
-      sleep 0.1
+      # Give the command a short grace period to exit and run its cleanup traps
+      sleep 3
       kill -9 "$cmdpid" 2>/dev/null || true
     fi
   ) &
@@ -221,6 +222,13 @@ state_summarize() {
         log "run_autopilot_summary failed or timed out; check audits for copilot.err"
         status="error"
         err="run_autopilot_summary failed or timed out"
+        # Attempt to detect and remove a stale director summary lock left by a killed child so future runs can proceed
+        lockdir="$DEV_AUDITS_DIR/director-summary.lock"
+        owner_pid="$(cat "$lockdir/pid" 2>/dev/null || true)"
+        if [ -n "$owner_pid" ] && ! kill -0 "$owner_pid" 2>/dev/null; then
+          log "Autopilot summary: cleaning stale lock (PID $owner_pid not running)"
+          rm -rf "$lockdir" 2>/dev/null || true
+        fi
         next_state="sleep"
       fi
     else
