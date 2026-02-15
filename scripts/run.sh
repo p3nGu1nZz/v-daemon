@@ -499,11 +499,11 @@ input_loop() {
       # read next bytes for escape sequences (supports longer sequences like ESC[1;5A)
       if [ "${READ_CAN_N:-0}" -eq 1 ]; then
         # read first two bytes to avoid blocking for long sequences
-        IFS= read -r -n2 seq_tail < "$TTY" 2>/dev/null || seq_tail=''
+        IFS= read -r -n3 seq_tail < "$TTY" 2>/dev/null || seq_tail=''
         # attempt to read any remaining bytes quickly (non-blocking short timeout)
-        # accumulate up to 5 extra bytes; safe if read -t unsupported (it will just fail fast)
-        for i in 1 2 3 4 5; do
-          if IFS= read -r -t 0.01 -n1 ch < "$TTY" 2>/dev/null; then
+        # accumulate up to 8 extra bytes; safe if read -t unsupported (it will just fail fast)
+        for i in 1 2 3 4 5 6 7 8; do
+          if IFS= read -r -t 0.05 -n1 ch < "$TTY" 2>/dev/null; then
             seq_tail="$seq_tail$ch"
           else
             break
@@ -511,7 +511,7 @@ input_loop() {
         done
       else
         # fallback: read a few bytes (may block until bytes available)
-        seq_tail="$(dd bs=1 count=3 2>/dev/null < "$TTY" || true)"
+        seq_tail="$(dd bs=1 count=5 2>/dev/null < "$TTY" || true)"
       fi
       seq="$c$seq_tail"
       # Normalize sequence to uppercase to simplify matching and handle terminal variants
@@ -548,9 +548,9 @@ input_loop() {
     # handle cases where a leading '[' or 'O' was read (partial escape sequence) — try to consume following bytes and treat as arrow keys
     if [ "$c" = '[' ] || [ "$c" = 'O' ]; then
       if [ "${READ_CAN_N:-0}" -eq 1 ]; then
-        IFS= read -r -t 0.02 -n3 seq_tail < "$TTY" 2>/dev/null || seq_tail=''
+        IFS= read -r -t 0.05 -n5 seq_tail < "$TTY" 2>/dev/null || seq_tail=''
       else
-        seq_tail="$(dd bs=1 count=3 2>/dev/null < "$TTY" || true)"
+        seq_tail="$(dd bs=1 count=5 2>/dev/null < "$TTY" || true)"
       fi
       seq="$c$seq_tail"
       seq_up="$(printf '%s' "$seq" | tr '[:lower:]' '[:upper:]' 2>/dev/null || printf '%s' "$seq")"
