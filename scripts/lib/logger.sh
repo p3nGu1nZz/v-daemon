@@ -4,8 +4,8 @@
 LOGFILE="${LOGFILE:-$LOG_DIR/daemon.log}"
 SUP_LOGFILE="${SUP_LOGFILE:-$LOG_DIR/supervisor.log}"
 DIRECTOR_LOG="${DIRECTOR_LOG:-$LOG_DIR/director.log}"
-# Default system log: prefer run/ (RUN_DIR) so it's co-located with runtime state; fall back to LOG_DIR
-SYSTEM_LOGFILE="${SYSTEM_LOGFILE:-${RUN_DIR:-./run}/system.log}"
+# Default system log: prefer LOG_DIR so system.log lives with other logs; fall back to RUN_DIR
+SYSTEM_LOGFILE="${SYSTEM_LOGFILE:-${LOG_DIR}/system.log}"
 
 # Ensure log directories exist; do NOT truncate an existing system log (preserve prior contents)
 mkdir -p "$LOG_DIR" 2>/dev/null || true

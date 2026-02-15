@@ -30,8 +30,10 @@ escape_sql() {
 }
 
 # Run a SQL statement against the DB and print results (no header, list mode)
+# Supports optional second arg: 'pretty' to enable -header -column formatted output
 sql_run() {
   sql="$1"
+  mode="${2:-raw}"
   sql_check || return 1
   mkdir -p "$(dirname "$DB_PATH")"
   # Try to enable WAL for better concurrency; capture result and warn if not WAL
@@ -39,10 +41,15 @@ sql_run() {
   if [ "$(printf '%s' "$wal_result" | tr '[:upper:]' '[:lower:]')" != "wal" ]; then
     printf '%s\n' "Warning: WAL not enabled; journal_mode is: $wal_result" >&2
   fi
-  # Ensure foreign keys and busy timeout for safer operation
+  # Ensure foreign keys and busy timeout for safer operation (silent)
   "$SQLITE_BIN" "$DB_PATH" -batch -noheader "PRAGMA foreign_keys = ON;" >/dev/null 2>&1 || true
   "$SQLITE_BIN" "$DB_PATH" -batch -noheader "PRAGMA busy_timeout = 5000;" >/dev/null 2>&1 || true
-  printf '%s\n' "$sql" | "$SQLITE_BIN" "$DB_PATH" -batch -noheader
+  if [ "${mode}" = "pretty" ]; then
+    # Use sqlite3's header/column mode for human-friendly output; PRAGMAs already set silently above
+    printf '%s\n' "$sql" | "$SQLITE_BIN" "$DB_PATH" -header -column
+  else
+    printf '%s\n' "$sql" | "$SQLITE_BIN" "$DB_PATH" -batch -noheader
+  fi
 }
 
 # Create schema for todos and dependencies

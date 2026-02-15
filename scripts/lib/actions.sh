@@ -24,34 +24,75 @@ run_autopilot_summary() {
   # try to acquire a simple lockdir to avoid concurrent runs
   if mkdir "$LOCKDIR" 2>/dev/null; then
     echo "$$" >"$LOCKDIR/pid" 2>/dev/null || true
+    echo "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >"$LOCKDIR/ts" 2>/dev/null || true
+    ps -p $$ -o args= 2>/dev/null >"$LOCKDIR/cmdline" 2>/dev/null || true
     CREATED_LOCK=1
   else
     OWNER_PID=$(cat "$LOCKDIR/pid" 2>/dev/null || true)
+    OWNER_META=""
+    if [ -f "$LOCKDIR/cmdline" ]; then OWNER_META="$(cat \"$LOCKDIR/cmdline\" 2>/dev/null || true)"; fi
     if [ -n "$OWNER_PID" ] && kill -0 "$OWNER_PID" 2>/dev/null; then
-      printf '%s [AGENT-DIRECTOR] Autopilot summary: already running (PID %s), waiting for completion\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$OWNER_PID" >>"$LOGFILE" 2>/dev/null || true
-      # Wait for the existing lock to clear (bounded by DIRECTOR_LOCK_WAIT_SECONDS)
-      WAIT_SECONDS="${DIRECTOR_LOCK_WAIT_SECONDS:-120}"
-      start_ts=$(date +%s)
-      while [ -d "$LOCKDIR" ] && [ $(( $(date +%s) - start_ts )) -lt "$WAIT_SECONDS" ]; do
-        sleep 1
-      done
-      if [ -d "$LOCKDIR" ]; then
-        printf '%s [AGENT-DIRECTOR] Autopilot summary: existing lock did not clear after %s seconds; skipping this run\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$WAIT_SECONDS" >>"$LOGFILE" 2>/dev/null || true
-        return 1
+      # determine lock age (seconds) using the timestamp file if present
+      LOCK_TS_FILE="$LOCKDIR/ts"
+      owner_age=0
+      if [ -f "$LOCK_TS_FILE" ]; then
+        lock_epoch=$(stat -c %Y "$LOCK_TS_FILE" 2>/dev/null || echo 0)
+        now_epoch=$(date +%s)
+        owner_age=$((now_epoch - lock_epoch))
       fi
-      # Attempt to acquire the lock now that it cleared
-      if mkdir "$LOCKDIR" 2>/dev/null; then
-        echo "$$" >"$LOCKDIR/pid" 2>/dev/null || true
-        CREATED_LOCK=1
+      STALE_SECONDS="${DIRECTOR_LOCK_STALE_SECONDS:-600}"
+      if [ "$owner_age" -ge "$STALE_SECONDS" ] && [ "$owner_age" -gt 0 ]; then
+        printf '%s [AGENT-DIRECTOR] Autopilot summary: lock PID %s owner_cmd="%s" age=%ss exceeds stale threshold=%ss; attempting to terminate and clean up\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$OWNER_PID" "$OWNER_META" "$owner_age" "$STALE_SECONDS" >>"$LOGFILE" 2>/dev/null || true
+        # Try graceful shutdown first, then escalate
+        if kill -TERM "$OWNER_PID" 2>/dev/null; then
+          sleep 3
+          if kill -0 "$OWNER_PID" 2>/dev/null; then
+            kill -9 "$OWNER_PID" 2>/dev/null || true
+          fi
+        fi
+        rm -rf "$LOCKDIR" 2>/dev/null || true
+        # Attempt to acquire the lock now that we've cleaned it
+        if mkdir "$LOCKDIR" 2>/dev/null; then
+          echo "$$" >"$LOCKDIR/pid" 2>/dev/null || true
+          echo "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >"$LOCKDIR/ts" 2>/dev/null || true
+          ps -p $$ -o args= 2>/dev/null >"$LOCKDIR/cmdline" 2>/dev/null || true
+          CREATED_LOCK=1
+        else
+          printf '%s [AGENT-DIRECTOR] Autopilot summary: unable to acquire lock after cleaning stale owner; skipping\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
+          return 1
+        fi
       else
-        printf '%s [AGENT-DIRECTOR] Autopilot summary: unable to acquire lock after wait; skipping\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
-        return 1
+        printf '%s [AGENT-DIRECTOR] Autopilot summary: already running (PID %s) owner_cmd="%s", waiting for completion\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$OWNER_PID" "$OWNER_META" >>"$LOGFILE" 2>/dev/null || true
+        # Wait for the existing lock to clear (bounded by DIRECTOR_LOCK_WAIT_SECONDS)
+        WAIT_SECONDS="${DIRECTOR_LOCK_WAIT_SECONDS:-120}"
+        start_ts=$(date +%s)
+        while [ -d "$LOCKDIR" ] && [ $(( $(date +%s) - start_ts )) -lt "$WAIT_SECONDS" ]; do
+          sleep 1
+        done
+        if [ -d "$LOCKDIR" ]; then
+          printf '%s [AGENT-DIRECTOR] Autopilot summary: existing lock (PID %s) did not clear after %s seconds; skipping this run\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$OWNER_PID" "$WAIT_SECONDS" >>"$LOGFILE" 2>/dev/null || true
+          return 1
+        fi
+        # Attempt to acquire the lock now that it cleared
+        if mkdir "$LOCKDIR" 2>/dev/null; then
+          echo "$$" >"$LOCKDIR/pid" 2>/dev/null || true
+          echo "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >"$LOCKDIR/ts" 2>/dev/null || true
+          ps -p $$ -o args= 2>/dev/null >"$LOCKDIR/cmdline" 2>/dev/null || true
+          CREATED_LOCK=1
+        else
+          printf '%s [AGENT-DIRECTOR] Autopilot summary: unable to acquire lock after wait; skipping\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
+          return 1
+        fi
       fi
     else
       # stale lockdir, try to remove and acquire
+      OWNER_META_FILE="$LOCKDIR/cmdline"
+      printf '%s [AGENT-DIRECTOR] Autopilot summary: cleaning stale lock (owner pid: %s, owner_cmd: %s)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$OWNER_PID" "$( [ -f \"$OWNER_META_FILE\" ] && cat \"$OWNER_META_FILE\" || echo '' )" >>"$LOGFILE" 2>/dev/null || true
       rm -rf "$LOCKDIR" 2>/dev/null || true
       if mkdir "$LOCKDIR" 2>/dev/null; then
         echo "$$" >"$LOCKDIR/pid" 2>/dev/null || true
+        echo "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >"$LOCKDIR/ts" 2>/dev/null || true
+        ps -p $$ -o args= 2>/dev/null >"$LOCKDIR/cmdline" 2>/dev/null || true
         CREATED_LOCK=1
       else
         printf '%s [AGENT-DIRECTOR] Autopilot summary: unable to acquire lock, skipping\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
@@ -74,8 +115,31 @@ run_autopilot_summary() {
   summary_file="$out_dir/summary.txt"
 
   # Redirect autopilot function stdout/stderr to director logfile to avoid duplicate console prints
-  mkdir -p "$(dirname "$LOGFILE")" 2>/dev/null || true
-  exec >>"$LOGFILE" 2>&1
+  mkdir -p "$(dirname \"$LOGFILE\")" 2>/dev/null || true
+  # Mirror director logfile to system log in near-real-time if SYSTEM_LOGFILE is set
+  if [ -n "${SYSTEM_LOGFILE:-}" ]; then
+    mkdir -p "$(dirname \"$SYSTEM_LOGFILE\")" 2>/dev/null || true
+    TAIL_PIDFILE="${RUN_DIR:-$REPO_ROOT/run}/director-log-dup.pid"
+    if command -v tail >/dev/null 2>&1; then
+      if [ -f "$TAIL_PIDFILE" ] && kill -0 "$(cat \"$TAIL_PIDFILE\" 2>/dev/null)" 2>/dev/null; then
+        :
+      else
+        # start a background tail that appends new director log lines to the system log
+        ( tail -n 0 -F "$LOGFILE" 2>/dev/null | while IFS= read -r ln; do printf '%s\n' "$ln" >>"$SYSTEM_LOGFILE" 2>/dev/null || true; done ) &
+        echo $! > "$TAIL_PIDFILE" 2>/dev/null || true
+        printf '%s [AGENT-DIRECTOR] log-dup: started tail pid %s to mirror to %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$(cat \"$TAIL_PIDFILE\" 2>/dev/null || echo '')" "$SYSTEM_LOGFILE" >>"$LOGFILE" 2>/dev/null || true
+      fi
+    fi
+  fi
+  if [ -n "${SYSTEM_LOGFILE:-}" ]; then
+    FIFO="${RUN_DIR:-$REPO_ROOT/run}/director.log.fifo"
+    rm -f "$FIFO" 2>/dev/null || true
+    mkfifo "$FIFO" 2>/dev/null || true
+    ( tee -a "$LOGFILE" "$SYSTEM_LOGFILE" <"$FIFO" & )
+    exec >"$FIFO" 2>&1
+  else
+    exec >>"$LOGFILE" 2>&1
+  fi
 
   prompt_file=$(mktemp "/tmp/director_prompt_${run_ts}.XXXXXX") || prompt_file="/tmp/director_prompt_${run_ts}.$$"
 if [ -f "$REPO_ROOT/scripts/lib/prompts.sh" ]; then

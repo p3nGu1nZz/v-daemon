@@ -21,6 +21,7 @@ Usage: sh scripts/db.sh <command> [args...]
 Commands:
   list-tables
   show-table <table>
+  view <table> [limit|'all']    # pretty-print rows with header (default limit 100)
   query <SQL>
   insert-row <table> col=val [col=val ...]
   update-row <table> <where> col=val [col=val ...]
@@ -49,9 +50,26 @@ case "$cmd" in
     [ -n "$table" ] || die "usage: show-table <table>"
     sql_check || die "sqlite3 not available"
     sql_run "SELECT sql FROM sqlite_master WHERE type='table' AND name='${table}';"
-    echo "---- rows (first 50) ----"
+    echo "---- rows (first 50, raw) ----"
     sql_run "SELECT * FROM \"${table}\" LIMIT 50;"
     ;;
+  view)
+    table="$2"
+    limit="${3:-100}"
+    [ -n "$table" ] || die "usage: view <table> [limit|'all']"
+    sql_check || die "sqlite3 not available"
+    # Use sql_run in pretty mode so PRAGMAs are applied silently and output is formatted
+    if [ "$limit" = "all" ]; then
+      sql_run "SELECT * FROM \"${table}\";" pretty
+    else
+      case "$limit" in
+        *[!0-9]*) die "limit must be a positive integer or 'all'" ;;
+      esac
+      sql_run "SELECT * FROM \"${table}\" LIMIT ${limit};" pretty
+    fi
+    ;;
+
+
   query)
     shift || true
     sql="$*"
@@ -139,9 +157,12 @@ case "$cmd" in
       echo "  ${t}: ${cnt}"
     done
     echo "table_count: $(sql_run "SELECT count(*) FROM sqlite_master WHERE type='table';")"
-    echo "journal_mode: $(sqlite3 \"$DB_PATH\" \"PRAGMA journal_mode;\")"
-    echo "foreign_keys: $(sqlite3 \"$DB_PATH\" \"PRAGMA foreign_keys;\")"
-    echo "busy_timeout: $(sqlite3 \"$DB_PATH\" \"PRAGMA busy_timeout;\")"
+    journal_mode_val=$("$SQLITE_BIN" "$DB_PATH" "PRAGMA journal_mode;" 2>/dev/null || true)
+    echo "journal_mode: $journal_mode_val"
+    foreign_keys_val=$("$SQLITE_BIN" "$DB_PATH" "PRAGMA foreign_keys;" 2>/dev/null || true)
+    echo "foreign_keys: $foreign_keys_val"
+    busy_timeout_val=$("$SQLITE_BIN" "$DB_PATH" "PRAGMA busy_timeout;" 2>/dev/null || true)
+    echo "busy_timeout: $busy_timeout_val"
     if command -v lsof >/dev/null 2>&1; then
       echo "connected_processes:"
       lsof "$DB_PATH" 2>/dev/null | sed -n '2,$p' || true
