@@ -34,8 +34,14 @@ sql_run() {
   sql="$1"
   sql_check || return 1
   mkdir -p "$(dirname "$DB_PATH")"
-  # Ensure WAL for better concurrency; run the PRAGMA quietly to avoid printing its result
-  printf '%s\n' "PRAGMA journal_mode=WAL;" | "$SQLITE_BIN" "$DB_PATH" -batch -noheader >/dev/null 2>&1
+  # Try to enable WAL for better concurrency; capture result and warn if not WAL
+  wal_result=$("$SQLITE_BIN" "$DB_PATH" -batch -noheader "PRAGMA journal_mode=WAL;" 2>/dev/null || true)
+  if [ "$(printf '%s' "$wal_result" | tr '[:upper:]' '[:lower:]')" != "wal" ]; then
+    printf '%s\n' "Warning: WAL not enabled; journal_mode is: $wal_result" >&2
+  fi
+  # Ensure foreign keys and busy timeout for safer operation
+  "$SQLITE_BIN" "$DB_PATH" -batch -noheader "PRAGMA foreign_keys = ON;" >/dev/null 2>&1 || true
+  "$SQLITE_BIN" "$DB_PATH" -batch -noheader "PRAGMA busy_timeout = 5000;" >/dev/null 2>&1 || true
   printf '%s\n' "$sql" | "$SQLITE_BIN" "$DB_PATH" -batch -noheader
 }
 
@@ -58,11 +64,14 @@ CREATE TABLE IF NOT EXISTS todo_deps (
   depends_on TEXT,
   PRIMARY KEY (todo_id, depends_on)
 );
+-- Helpful indexes for common queries
+CREATE INDEX IF NOT EXISTS idx_todos_status_created_at ON todos (status, created_at);
+CREATE INDEX IF NOT EXISTS idx_todo_deps_depends_on ON todo_deps (depends_on);
 COMMIT;
 SQL
 }
 
-# Insert or replace a todo item
+# Insert or upsert a todo item, preserving original created_at when updating
 sql_insert_todo() {
   id="$1"
   title="$2"
@@ -72,7 +81,8 @@ sql_insert_todo() {
   id_esc=$(escape_sql "$id")
   title_esc=$(escape_sql "$title")
   desc_esc=$(escape_sql "$description")
-  sql_run "INSERT OR REPLACE INTO todos (id, title, description, status, created_at, updated_at) VALUES ('$id_esc','$title_esc','$desc_esc','$status','$now','$now');"
+  status_esc=$(escape_sql "$status")
+  sql_run "INSERT INTO todos (id, title, description, status, created_at, updated_at) VALUES ('$id_esc','$title_esc','$desc_esc','$status_esc','$now','$now') ON CONFLICT(id) DO UPDATE SET title=excluded.title, description=excluded.description, status=excluded.status, updated_at=excluded.updated_at;"
 }
 
 # Update status for existing todo
@@ -115,6 +125,15 @@ sql_init() {
   # Touch DB to ensure file exists
   "$SQLITE_BIN" "$DB_PATH" ".databases" >/dev/null 2>&1 || true
   sql_create_schema || return 1
+  # Attempt to enable WAL and set safety/concurrency PRAGMAs
+  wal_result=$("$SQLITE_BIN" "$DB_PATH" -batch -noheader "PRAGMA journal_mode=WAL;" 2>/dev/null || true)
+  if [ "$(printf '%s' "$wal_result" | tr '[:upper:]' '[:lower:]')" != "wal" ]; then
+    printf '%s\n' "Warning: Could not enable WAL journal mode (journal_mode=${wal_result}). Consider moving DB to a WAL-capable filesystem or accept reduced concurrency." >&2
+  fi
+  "$SQLITE_BIN" "$DB_PATH" -batch -noheader "PRAGMA foreign_keys = ON;" >/dev/null 2>&1 || true
+  "$SQLITE_BIN" "$DB_PATH" -batch -noheader "PRAGMA busy_timeout = 5000;" >/dev/null 2>&1 || true
+  # Restrict DB file permissions where possible
+  chmod 600 "$DB_PATH" >/dev/null 2>&1 || true
 }
 
 # End of sql.sh
