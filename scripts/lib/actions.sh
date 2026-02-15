@@ -372,45 +372,67 @@ fi
     done
 
     if [ "$usable" -ne 1 ]; then
-      if [ -s "$summary_file" ]; then
-        cleaned=$(mktemp "/tmp/director_cleaned_${run_ts}.XXXXXX") || cleaned="$summary_file"
-        grep -i -v -E 'Try .*copilot --help|^\$ |^\s*✗|Reading README|Running parallel|Attempt to read|^\s*\$' "$summary_file" > "$cleaned" 2>/dev/null || cp "$summary_file" "$cleaned" 2>/dev/null || true
-        if [ -s "$cleaned" ]; then
-          # do NOT fallback to local summarizer; preserve raw and sanitized outputs for diagnostics
-          mv "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || cp "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || true
-          mv "$cleaned" "$out_dir/copilot_sanitized.txt" 2>/dev/null || cp "$cleaned" "$out_dir/copilot_sanitized.txt" 2>/dev/null || true
-          printf '%s [AGENT-DIRECTOR] Autopilot summary: sanitized copilot output saved to %s/copilot_sanitized.txt and raw to %s/copilot_raw.txt\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" "$out_dir" >>"$LOGFILE" 2>/dev/null || true
-          printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced sanitized output after %d attempts but will NOT fallback; inspect %s/copilot_sanitized.txt\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$MAX_ATTEMPTS" "$out_dir" >>"$LOGFILE" 2>/dev/null || true
-        else
-          rm -f "$cleaned" 2>/dev/null || true
-          mv "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || cp "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || true
-          printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced only artifacts after %d attempts; no usable summary\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$MAX_ATTEMPTS" >>"$LOGFILE" 2>/dev/null || true
-        fi
+      FAIL_CNT_FILE="${RUN_DIR:-$REPO_ROOT/run}/copilot_consecutive_failures"
+      cur=$(cat "$FAIL_CNT_FILE" 2>/dev/null || echo 0)
+      case "$cur" in ''|*[!0-9]*) cur=0 ;; esac
+      cur=$((cur+1))
+      printf '%d' "$cur" > "$FAIL_CNT_FILE" 2>/dev/null || true
+
+      # capture environment diagnostics for debugging
+      {
+        printf '=== copilot env diagnostics ===\n'
+        printf 'command -v copilot: %s\n' "$(command -v copilot 2>/dev/null || echo '(not found)')"
+        printf 'which copilot: %s\n' "$(which copilot 2>/dev/null || echo '(not found)')"
+        copilot --version 2>&1 || true
+        printf 'PATH=%s\n' "$PATH"
+        printf 'COPILOT_MODEL=%s\n' "${COPILOT_MODEL:-}"
+      } > "$out_dir/copilot_env.txt" 2>/dev/null || true
+
+      CB_THRESH="${DIRECTOR_COPILOT_CIRCUIT_BREAKER:-3}"
+      if [ "$cur" -ge "$CB_THRESH" ]; then
+        printf '%s [AGENT-DIRECTOR] Autopilot summary: Copilot circuit-breaker tripped (consecutive failures=%d >= %d); generating fallback summary\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$cur" "$CB_THRESH" >>"$LOGFILE" 2>/dev/null || true
+        printf 'Copilot unavailable after %d consecutive failures; director generated a minimal fallback summary for continuity.\n' "$cur" > "$summary_file" 2>/dev/null || true
+        cp "$summary_file" "$out_dir/copilot_fallback.txt" 2>/dev/null || true
+        # reset counter
+        printf '%s' "0" > "$FAIL_CNT_FILE" 2>/dev/null || true
+        usable=1
       else
-        printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot failed to produce any output after %d attempts\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$MAX_ATTEMPTS" >>"$LOGFILE" 2>/dev/null || true
-      fi
+        if [ -s "$summary_file" ]; then
+          cleaned=$(mktemp "/tmp/director_cleaned_${run_ts}.XXXXXX") || cleaned="$summary_file"
+          grep -i -v -E 'Try .*copilot --help|^\$ |^\s*✗|Reading README|Running parallel|Attempt to read|^\s*\$' "$summary_file" > "$cleaned" 2>/dev/null || cp "$summary_file" "$cleaned" 2>/dev/null || true
+          if [ -s "$cleaned" ]; then
+            mv "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || cp "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || true
+            mv "$cleaned" "$out_dir/copilot_sanitized.txt" 2>/dev/null || cp "$cleaned" "$out_dir/copilot_sanitized.txt" 2>/dev/null || true
+            printf '%s [AGENT-DIRECTOR] Autopilot summary: sanitized copilot output saved to %s/copilot_sanitized.txt and raw to %s/copilot_raw.txt\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" "$out_dir" >>"$LOGFILE" 2>/dev/null || true
+            printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced sanitized output after %d attempts but will NOT fallback; inspect %s/copilot_sanitized.txt\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$MAX_ATTEMPTS" "$out_dir" >>"$LOGFILE" 2>/dev/null || true
+          else
+            rm -f "$cleaned" 2>/dev/null || true
+            mv "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || cp "$summary_file" "$out_dir/copilot_raw.txt" 2>/dev/null || true
+            printf '%s [AGENT-DIRECTOR] Autopilot summary: copilot produced only artifacts after %d attempts; no usable summary\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$MAX_ATTEMPTS" >>"$LOGFILE" 2>/dev/null || true
+          fi
+        fi
 
-      # If copilot produced no stdout/stderr, write diagnostics to copilot.err for debugging
-      if [ ! -s "$out_dir/copilot.err" ]; then
-        {
-          printf '=== copilot diagnostics (no stdout/stderr captured) ===\n'
-          printf 'command -v copilot: %s\n' "$(command -v copilot 2>/dev/null || echo '(not found)')"
-          printf 'which copilot: %s\n' "$(which copilot 2>/dev/null || echo '(not found)')"
-          copilot --version 2>&1 || true
-          printf 'PATH=%s\n' "$PATH"
-          printf 'COPILOT_MODEL=%s\n' "${COPILOT_MODEL:-}"
-          printf 'prompt head (first 8k bytes):\n'
-          head -c 8192 "$active_prompt" 2>/dev/null || true
-        } >> "$out_dir/copilot.err" 2>/dev/null || true
-        printf '%s [AGENT-DIRECTOR] Autopilot summary: no copilot stderr captured; diagnostics written to %s/copilot.err\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" >>"$LOGFILE" 2>/dev/null || true
-      fi
+        # If copilot produced no stdout/stderr, write diagnostics to copilot.err for debugging
+        if [ ! -s "$out_dir/copilot.err" ]; then
+          {
+            printf '=== copilot diagnostics (no stdout/stderr captured) ===\n'
+            printf 'command -v copilot: %s\n' "$(command -v copilot 2>/dev/null || echo '(not found)')"
+            printf 'which copilot: %s\n' "$(which copilot 2>/dev/null || echo '(not found)')"
+            copilot --version 2>&1 || true
+            printf 'PATH=%s\n' "$PATH"
+            printf 'COPILOT_MODEL=%s\n' "${COPILOT_MODEL:-}"
+            printf 'prompt head (first 8k bytes):\n'
+            head -c 8192 "$active_prompt" 2>/dev/null || true
+          } >> "$out_dir/copilot.err" 2>/dev/null || true
+          printf '%s [AGENT-DIRECTOR] Autopilot summary: no copilot stderr captured; diagnostics written to %s/copilot.err\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$out_dir" >>"$LOGFILE" 2>/dev/null || true
+        fi
 
-      # After saving diagnostics, abort without local fallback
-      printf '%s [AGENT-DIRECTOR] Autopilot summary: no usable summary produced; aborting (no local fallback)\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" >>"$LOGFILE" 2>/dev/null || true
-      cleanup_tmp || true
-      cleanup_lock
-      trap - EXIT INT TERM
-      return 1
+        printf '%s [AGENT-DIRECTOR] Autopilot summary: no usable summary produced; consecutive_failures=%d; aborting\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$cur" >>"$LOGFILE" 2>/dev/null || true
+        cleanup_tmp || true
+        cleanup_lock
+        trap - EXIT INT TERM
+        return 1
+      fi
     fi
   fi
 
