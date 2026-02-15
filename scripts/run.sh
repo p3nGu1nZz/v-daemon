@@ -114,6 +114,7 @@ start_supervisor_bg() {
 # Parse optional --monitor and --yolo flags anywhere in args and rebuild positional params without them
 MONITOR=0
 MONITOR_MANAGES_PROCESS=0
+MONITOR_DEBUG=0
 YOLO_FORCE=0
 for a in "$@"; do
   if [ "$a" = "--monitor" ] || [ "$a" = "-m" ]; then
@@ -133,6 +134,9 @@ while [ $# -gt 0 ]; do
       shift;;
     --logs)
       STREAM_LOGS=1
+      shift;;
+    --monitor-debug)
+      MONITOR_DEBUG=1
       shift;;
     -h|--help)
       usage;;
@@ -484,6 +488,11 @@ input_loop() {
 
     if [ -z "$c" ]; then
       continue
+    fi
+
+    # Optional: record raw input bytes for debugging (hex) when --monitor-debug enabled
+    if [ "${MONITOR_DEBUG:-0}" -eq 1 ]; then
+      printf '%s %s\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$(printf '%s' "$c" | od -An -tx1 | tr -d ' \n')" >> "$RUN_DIR/monitor_debug.log" 2>/dev/null || true
     fi
 
     if [ "$c" = "$ESC" ]; then
