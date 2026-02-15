@@ -174,7 +174,7 @@ fi
       # Use timeout wrapper if available to limit copilot hang time
       TIMEOUT_CMD=""
       if command -v timeout >/dev/null 2>&1; then
-        TIMEOUT_CMD="timeout ${DIRECTOR_COPILOT_TIMEOUT_SECONDS:-110}"
+        TIMEOUT_CMD="timeout ${DIRECTOR_COPILOT_TIMEOUT_SECONDS:-300}"
       fi
 
       # record start timestamp for diagnostics
@@ -416,7 +416,7 @@ fi
       # Use timeout wrapper for plan generation if available
       TIMEOUT_CMD=""
       if command -v timeout >/dev/null 2>&1; then
-        TIMEOUT_CMD="timeout ${DIRECTOR_COPILOT_TIMEOUT_SECONDS:-110}"
+        TIMEOUT_CMD="timeout ${DIRECTOR_COPILOT_TIMEOUT_SECONDS:-300}"
       fi
       if [ -n "$TIMEOUT_CMD" ]; then
         if $COPILOT_ENV $TIMEOUT_CMD copilot -s -p "$PLAN_TEXT" $COPILOT_OPTS >"$plan_raw" 2>"$plan_err"; then
