@@ -21,7 +21,7 @@ Usage: sh scripts/db.sh <command> [args...]
 Commands:
   list-tables
   show-table <table>
-  view <table> [limit|'all']    # pretty-print rows with header (default limit 100)
+  view <table> [limit|'all'] [format]    # format: pretty (default), raw, csv; default limit 100
   query <SQL>
   insert-row <table> col=val [col=val ...]
   update-row <table> <where> col=val [col=val ...]
@@ -56,17 +56,33 @@ case "$cmd" in
   view)
     table="$2"
     limit="${3:-100}"
-    [ -n "$table" ] || die "usage: view <table> [limit|'all']"
+    format="${4:-pretty}"
+    [ -n "$table" ] || die "usage: view <table> [limit|'all'] [format]"
     sql_check || die "sqlite3 not available"
-    # Use sql_run in pretty mode so PRAGMAs are applied silently and output is formatted
+    # Prepare SQL (respect 'all' or numeric limit)
     if [ "$limit" = "all" ]; then
-      sql_run "SELECT * FROM \"${table}\";" pretty
+      sql="SELECT * FROM \"${table}\";"
     else
       case "$limit" in
         *[!0-9]*) die "limit must be a positive integer or 'all'" ;;
       esac
-      sql_run "SELECT * FROM \"${table}\" LIMIT ${limit};" pretty
+      sql="SELECT * FROM \"${table}\" LIMIT ${limit};"
     fi
+    # Dispatch output format
+    case "$format" in
+      pretty)
+        sql_run "$sql" pretty
+        ;;
+      raw)
+        sql_run "$sql" raw
+        ;;
+      csv)
+        printf '%s\n' "$sql" | "$SQLITE_BIN" "$DB_PATH" -header -csv
+        ;;
+      *)
+        die "unknown format: $format (supported: pretty, raw, csv)"
+        ;;
+    esac
     ;;
 
 
