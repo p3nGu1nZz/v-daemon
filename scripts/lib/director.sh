@@ -133,18 +133,24 @@ run_with_timeout() {
   (
     sleep "$timeout_secs"
     if kill -0 "$cmdpid" 2>/dev/null; then
-      # Attempt to kill the entire process group of the child so any spawned copilot or helper
-      # processes do not remain orphaned and hold locks.
+      # Find process group and parent process group to avoid killing the parent's group
       pgid="$(ps -o pgid= "$cmdpid" 2>/dev/null | tr -d '[:space:]' || true)"
-      if [ -n "$pgid" ]; then
+      parent_pgid="$(ps -o pgid= $$ 2>/dev/null | tr -d '[:space:]' || true)"
+      if [ -n "$pgid" ] && [ -n "$parent_pgid" ] && [ "$pgid" != "$parent_pgid" ]; then
+        # Kill the child's process group only if it differs from our own group
         kill -TERM -"$pgid" 2>/dev/null || kill "$cmdpid" 2>/dev/null || true
         # Give the group a short grace period to exit and run cleanup traps
         sleep 3
         kill -9 -"$pgid" 2>/dev/null || kill -9 "$cmdpid" 2>/dev/null || true
       else
-        kill "$cmdpid" 2>/dev/null || true
-        sleep 3
-        kill -9 "$cmdpid" 2>/dev/null || true
+        # Fall back to a safer tree-kill that targets the specific command PID and its descendants
+        if command -v proc_kill_tree >/dev/null 2>&1; then
+          proc_kill_tree "$cmdpid" 2>/dev/null || true
+        else
+          kill "$cmdpid" 2>/dev/null || true
+          sleep 3
+          kill -9 "$cmdpid" 2>/dev/null || true
+        fi
       fi
     fi
   ) &
