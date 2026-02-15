@@ -176,7 +176,13 @@ fi
       if command -v timeout >/dev/null 2>&1; then
         TIMEOUT_CMD="timeout ${DIRECTOR_COPILOT_TIMEOUT_SECONDS:-110}"
       fi
+
+      # record start timestamp for diagnostics
+      attempt_start_ts="$(date +'%Y-%m-%dT%H:%M:%S%z')"
+      printf '%s\n' "$attempt_start_ts" > "$out_dir/copilot.start_ts" 2>/dev/null || true
+
       if [ -n "$TIMEOUT_CMD" ]; then
+        # run copilot under timeout wrapper
         if $COPILOT_ENV $TIMEOUT_CMD copilot -s -p "$PROMPT_TEXT" $COPILOT_OPTS >"$summary_file" 2>"$out_dir/copilot.err"; then
           copilot_status=0
         else
@@ -189,9 +195,25 @@ fi
           copilot_status=$?
         fi
       fi
+
+      # record end timestamp and exit code
+      attempt_end_ts="$(date +'%Y-%m-%dT%H:%M:%S%z')"
+      printf '%s\n' "$attempt_end_ts" > "$out_dir/copilot.end_ts" 2>/dev/null || true
+      printf '%s\n' "exitcode:$copilot_status" > "$out_dir/copilot.exit" 2>/dev/null || true
+
       # Capture any copilot-related processes and a full ps snapshot for diagnostics
       ps -eo pid,ppid,pgid,cmd 2>/dev/null | grep -i 'copilot' | grep -v grep > "$out_dir/copilot.processlist" 2>/dev/null || true
       ps -eo pid,ppid,pgid,cmd 2>/dev/null > "$out_dir/ps_snapshot.txt" 2>/dev/null || true
+
+      # write primary copilot pid/pgid if present
+      if [ -s "$out_dir/copilot.processlist" ]; then
+        awk 'NR==1 {print $1" "$3}' "$out_dir/copilot.processlist" > "$out_dir/copilot_pid_pgid" 2>/dev/null || true
+        if [ -s "$out_dir/copilot_pid_pgid" ]; then
+          read cp_pid cp_pgid < "$out_dir/copilot_pid_pgid" || true
+          printf '%s\n' "$cp_pid" > "$out_dir/copilot.pid" 2>/dev/null || true
+          printf '%s\n' "$cp_pgid" > "$out_dir/copilot.pgid" 2>/dev/null || true
+        fi
+      fi
 
       if [ -s "$summary_file" ]; then
         cleaned=$(mktemp "/tmp/director_cleaned_${run_ts}.XXXXXX") || cleaned="$summary_file"
