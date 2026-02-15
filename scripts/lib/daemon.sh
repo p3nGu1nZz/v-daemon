@@ -82,6 +82,12 @@ cleanup() {
     fi
   fi
 
+  # attempt to reap orphaned processes we may have created before exiting
+  if command -v reap_orphaned_repo_processes >/dev/null 2>&1 || true; then
+    # call best-effort; function defined in this file
+    reap_orphaned_repo_processes || true
+  fi
+
   # only remove pidfile if it belongs to this process
   if [ -f "$PIDFILE" ] && [ "$(cat "$PIDFILE" 2>/dev/null || true)" = "$$" ]; then
     rm -f "$PIDFILE"
@@ -273,6 +279,46 @@ ensure_sql_agent_running() {
   return 0
 }
 
+# Reap orphaned processes created by this repo that are no longer tracked by pidfiles
+reap_orphaned_repo_processes() {
+  # collect known pidfiles under RUN_DIR
+  known_pids=""
+  for f in "$RUN_DIR"/*.pid; do
+    [ -f "$f" ] || continue
+    p="$(cat "$f" 2>/dev/null || true)"
+    case "$p" in ''|*[!0-9]*) continue ;; esac
+    known_pids="$known_pids $p"
+  done
+
+  CUR_UID="$(id -u 2>/dev/null || echo '')"
+
+  # Find processes whose args contain the repo path, skip known pidfile owners
+  ps -eo pid,ppid,etimes,args 2>/dev/null | awk -v repo="$REPO_ROOT" -v kp="$known_pids" '
+    BEGIN { n=split(kp, arr, " "); for(i=1;i<=n;i++) if (arr[i] != "") KEEP[arr[i]]=1 }
+    {
+      pid=$1; ppid=$2; etimes=$3; $1=$2=$3=""; args=substr($0,4);
+      if (index(args, repo) == 0) next;
+      if (pid in KEEP) next;
+      if (ppid in KEEP) next;
+      if (etimes < 2) next; # skip very young processes
+      print pid, ppid, etimes, args;
+    }' | while read -r pid ppid etimes args; do
+      owner_uid="$(ps -o uid= -p "$pid" 2>/dev/null | tr -d ' ' || echo '')"
+      if [ -n "$owner_uid" ] && [ "$owner_uid" != "$CUR_UID" ]; then
+        continue
+      fi
+      # If parent not running or parent is init (1), treat as orphan
+      if ! kill -0 "$ppid" 2>/dev/null || [ "$ppid" -eq 1 ]; then
+        log "[DAEMON] reap: killing orphaned process PID $pid (ppid=$ppid) args=\"$args\""
+        kill "$pid" 2>/dev/null || true
+        sleep 0.2
+        if kill -0 "$pid" 2>/dev/null; then
+          kill -9 "$pid" 2>/dev/null || true
+        fi
+      fi
+    done
+}
+
 # Ensure director is started immediately on daemon startup
 ensure_director_running
 # Ensure sql-agent is started immediately on daemon startup
@@ -283,6 +329,9 @@ while true; do
   ensure_director_running
   # Periodically ensure sql-agent is running
   ensure_sql_agent_running
+
+  # Periodically reap orphaned processes that were started from this repo
+  reap_orphaned_repo_processes
 
   # Heartbeat: include director status so monitor shows director health
   DPID=""

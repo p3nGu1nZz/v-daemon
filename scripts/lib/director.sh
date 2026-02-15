@@ -234,17 +234,44 @@ state_summarize() {
           next_state="sleep"
         fi
       else
-        log "state=summarize: run_autopilot_summary failed or timed out; check audits for copilot.err"
-        status="error"
-        err="run_autopilot_summary failed or timed out"
-        # Attempt to detect and remove a stale director summary lock left by a killed child so future runs can proceed
-        lockdir="$DEV_AUDITS_DIR/director-summary.lock"
-        owner_pid="$(cat "$lockdir/pid" 2>/dev/null || true)"
-        if [ -n "$owner_pid" ] && ! kill -0 "$owner_pid" 2>/dev/null; then
-          log "Autopilot summary: cleaning stale lock (PID $owner_pid not running)"
-          rm -rf "$lockdir" 2>/dev/null || true
+        # If the summary run timed out, but a canonical summary already exists and is recent,
+        # accept the existing summary to avoid false negatives from timeouts in follow-up steps.
+        if [ -s "$DEV_AUDITS_DIR/last_summary.txt" ]; then
+          last_mod=$(stat -c %Y "$DEV_AUDITS_DIR/last_summary.txt" 2>/dev/null || echo 0)
+          now_epoch=$(date +%s)
+          age=$((now_epoch - last_mod))
+          ALLOW_AGE="${DIRECTOR_COPILOT_TIMEOUT_SECONDS:-300}"
+          if [ "$age" -ge 0 ] && [ "$age" -le "$ALLOW_AGE" ]; then
+            log "state=summarize: run_autopilot_summary timed out but existing summary found (age ${age}s); accepting canonical summary"
+            status="ok"
+            err=""
+            next_state="next_steps"
+          else
+            log "state=summarize: run_autopilot_summary failed or timed out; check audits for copilot.err"
+            status="error"
+            err="run_autopilot_summary failed or timed out"
+            # Attempt to detect and remove a stale director summary lock left by a killed child so future runs can proceed
+            lockdir="$DEV_AUDITS_DIR/director-summary.lock"
+            owner_pid="$(cat "$lockdir/pid" 2>/dev/null || true)"
+            if [ -n "$owner_pid" ] && ! kill -0 "$owner_pid" 2>/dev/null; then
+              log "Autopilot summary: cleaning stale lock (PID $owner_pid not running)"
+              rm -rf "$lockdir" 2>/dev/null || true
+            fi
+            next_state="sleep"
+          fi
+        else
+          log "state=summarize: run_autopilot_summary failed or timed out; check audits for copilot.err"
+          status="error"
+          err="run_autopilot_summary failed or timed out"
+          # Attempt to detect and remove a stale director summary lock left by a killed child so future runs can proceed
+          lockdir="$DEV_AUDITS_DIR/director-summary.lock"
+          owner_pid="$(cat "$lockdir/pid" 2>/dev/null || true)"
+          if [ -n "$owner_pid" ] && ! kill -0 "$owner_pid" 2>/dev/null; then
+            log "Autopilot summary: cleaning stale lock (PID $owner_pid not running)"
+            rm -rf "$lockdir" 2>/dev/null || true
+          fi
+          next_state="sleep"
         fi
-        next_state="sleep"
       fi
     else
       log "copilot CLI not installed; autopilot summary required; aborting"

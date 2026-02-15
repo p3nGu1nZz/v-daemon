@@ -5,13 +5,17 @@ set -eu
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LOGFILE="${REPO_ROOT}/logs/director.log"
-DEV_AUDITS_DIR="$REPO_ROOT/audits"
+DEV_AUDITS_DIR="${DEV_AUDITS_DIR:-$REPO_ROOT/audits}"
 mkdir -p "$DEV_AUDITS_DIR"
 
 # Load environment, console, and logger helpers if available for consistent env and logging
 if [ -f "$REPO_ROOT/scripts/lib/env.sh" ]; then
   . "$REPO_ROOT/scripts/lib/env.sh"
   env_init "$REPO_ROOT"
+fi
+# Load lock helpers for safe process termination (optional)
+if [ -f "$REPO_ROOT/scripts/lib/lock_utils.sh" ]; then
+  . "$REPO_ROOT/scripts/lib/lock_utils.sh"
 fi
 # console/logger/prompts are loaded by env_init in scripts/lib/env.sh
 
@@ -95,14 +99,25 @@ run_autopilot_summary() {
           fi
         fi
         if [ "$SAFE_TO_KILL" -eq 1 ]; then
-          # Try graceful shutdown first, then escalate
-          if kill -TERM "$OWNER_PID" 2>/dev/null; then
-            sleep 3
-            if kill -0 "$OWNER_PID" 2>/dev/null; then
-              kill -9 "$OWNER_PID" 2>/dev/null || true
+          # Attempt to safely terminate the owner process tree using proc_kill_tree (if available)
+          if command -v proc_kill_tree >/dev/null 2>&1; then
+            if proc_kill_tree "$OWNER_PID"; then
+              printf '%s [AGENT-DIRECTOR] Autopilot summary: terminated owner PID %s and descendants\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$OWNER_PID" >>"$LOGFILE" 2>/dev/null || true
+              rm -rf "$LOCKDIR" 2>/dev/null || true
+            else
+              printf '%s [AGENT-DIRECTOR] Autopilot summary: proc_kill_tree failed for PID %s; leaving lock in place\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$OWNER_PID" >>"$LOGFILE" 2>/dev/null || true
+              return 1
             fi
+          else
+            # Fallback: single-pid graceful+forceful kill
+            if kill -TERM "$OWNER_PID" 2>/dev/null; then
+              sleep 3
+              if kill -0 "$OWNER_PID" 2>/dev/null; then
+                kill -9 "$OWNER_PID" 2>/dev/null || true
+              fi
+            fi
+            rm -rf "$LOCKDIR" 2>/dev/null || true
           fi
-          rm -rf "$LOCKDIR" 2>/dev/null || true
         else
           printf '%s [AGENT-DIRECTOR] Autopilot summary: owner PID %s not safely terminable; skipping kill and leaving lock in place\n' "$(date +'%Y-%m-%dT%H:%M:%S%z')" "$OWNER_PID" >>"$LOGFILE" 2>/dev/null || true
           return 1
