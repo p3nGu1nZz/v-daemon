@@ -113,6 +113,7 @@ start_supervisor_bg() {
 
 # Parse optional --monitor and --yolo flags anywhere in args and rebuild positional params without them
 MONITOR=0
+MONITOR_MANAGES_PROCESS=0
 YOLO_FORCE=0
 for a in "$@"; do
   if [ "$a" = "--monitor" ] || [ "$a" = "-m" ]; then
@@ -169,12 +170,14 @@ cleanup_and_exit() {
   [ -n "${STATUS_PID:-}" ] && kill "$STATUS_PID" 2>/dev/null || true
   [ -n "${INPUT_PID:-}" ] && kill "$INPUT_PID" 2>/dev/null || true
 
-  # Try to stop supervisor/daemon processes and any orphans
-  stop_all
+  # Try to stop supervisor/daemon processes and any orphans only if this monitor managed them
+  if [ "${MONITOR_MANAGES_PROCESS:-0}" -eq 1 ]; then
+    stop_all
 
-  # Ensure director is stopped
-  if [ -n "${DIRECTOR_PIDFILE:-}" ] && [ -f "$SCRIPT_DIR/lib/process.sh" ]; then
-    stop_by_pidfile "$DIRECTOR_PIDFILE" || true
+    # Ensure director is stopped
+    if [ -n "${DIRECTOR_PIDFILE:-}" ] && [ -f "$SCRIPT_DIR/lib/process.sh" ]; then
+      stop_by_pidfile "$DIRECTOR_PIDFILE" || true
+    fi
   fi
 
   exit 130
@@ -1195,6 +1198,7 @@ case "${1:-}" in
     fi
     start_supervisor_bg
     if [ "$MONITOR" -eq 1 ]; then
+      MONITOR_MANAGES_PROCESS=1
       monitor_foreground
     fi
     ;;
