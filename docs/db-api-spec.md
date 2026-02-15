@@ -18,6 +18,9 @@ Purpose: Provide a simple CLI for listing tables, querying, and performing limit
   - Description: shows CREATE SQL for the table and prints first 50 rows
   - Output: CREATE TABLE statement, then a separator, then rows
 
+- view <table> [limit|'all'] [format]
+  - Description: pretty-print table rows with headers; formats supported: pretty (sqlite3 -header -column), raw (pipe-delimited), csv (header + CSV).
+
 - query <SQL>
   - Description: run arbitrary SQL (administrative; avoid untrusted input)
   - Output: sqlite3 formatted output

@@ -11,6 +11,7 @@ Commands
 --------
 - list-tables: list all tables
 - show-table <table>: show CREATE statement and first 50 rows
+- view <table> [limit|'all'] [format]: print rows with header; formats: pretty (default), raw, csv
 - query <SQL>: run arbitrary SQL (be careful with untrusted input)
 - insert-row <table> col=val [...]: insert a row
 - update-row <table> <where> col=val [...]: update rows matching WHERE

@@ -13,6 +13,7 @@ The db-api skill exposes the repository's SQLite database to agents via a lightw
 - scripts/skills/db-api.py list-tables
 - scripts/skills/db-api.py status
 - scripts/skills/db-api.py show-table todos
+- scripts/skills/db-api.py view todos [limit|'all'] [format]    # formats: pretty (default), raw, csv
 - scripts/skills/db-api.py query "SELECT count(*) FROM todos;"
 
 ## Troubleshooting

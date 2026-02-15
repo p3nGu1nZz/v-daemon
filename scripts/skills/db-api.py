@@ -16,6 +16,7 @@ def main():
         return 2
     if len(sys.argv) <= 1:
         print("Usage: db-api.py <command> [args...]")
+        print("Examples: list-tables, status, show-table <table>, view <table> [limit|'all'] [format], query <SQL>")
         return 2
     cmd = [dbsh] + sys.argv[1:]
     try:
