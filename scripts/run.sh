@@ -455,8 +455,12 @@ input_loop() {
   CR="$(printf '\\r')"
 
   while :; do
-    # determine controlling terminal to read from (fallback to stdin)
-    if [ -t 0 ]; then TTY="/dev/tty"; else TTY="/dev/stdin"; fi
+    # determine controlling terminal to read from; prefer /dev/tty when available
+    if [ -r /dev/tty ]; then
+      TTY="/dev/tty"
+    else
+      TTY="/dev/stdin"
+    fi
 
     # detect if current shell supports 'read -n' for single-char reads (portable fallback to dd otherwise)
     if [ -z "${READ_CAN_N:-}" ]; then
