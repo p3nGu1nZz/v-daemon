@@ -24,7 +24,7 @@ yolo = true
 
 [director]
 # Whether the director may attempt safe, sandboxed execution of small patches (default false)
-allow_execute = false
+allow_execute = true
 # Branch prefix to use for sandbox branches created by the patcher
 sandbox_branch_prefix = "director/sandbox-"
 # Run interval for the director's autopilot cycles (seconds)
